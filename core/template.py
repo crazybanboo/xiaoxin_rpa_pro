@@ -197,7 +197,7 @@ class TemplateManager(LoggerMixin):
         size = pyautogui.size()
         return f"{size.width}x{size.height}"
     
-    def get_template(self, template_name: str, resolution: Optional[str] = None) -> Optional[TemplateItem]:
+    def get_template(self, template_name: Optional[str], resolution: Optional[str] = None) -> Optional[TemplateItem]:
         """
         获取模板
         
@@ -210,6 +210,10 @@ class TemplateManager(LoggerMixin):
         """
         if resolution is None:
             resolution = self.get_current_resolution()
+        
+        if template_name is None:
+            self.logger.error(f"模板名称不能为空")
+            return None
         
         # 解析模板名称
         if '.' not in template_name:

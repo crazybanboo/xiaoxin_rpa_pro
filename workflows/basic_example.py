@@ -24,7 +24,7 @@ class WaitForTemplateStep(WorkflowStep):
         vision_engine = context.get('vision_engine')
         template_manager = context.get('template_manager')
         
-        if not vision_engine or not template_manager:
+        if not isinstance(vision_engine, VisionEngine) or not isinstance(template_manager, TemplateManager):
             return False
         
         # 获取模板
@@ -60,7 +60,7 @@ class ClickTemplateStep(WorkflowStep):
         template_manager = context.get('template_manager')
         mouse_controller = context.get('mouse_controller')
         
-        if not all([vision_engine, template_manager, mouse_controller]):
+        if not isinstance(vision_engine, VisionEngine) or not isinstance(template_manager, TemplateManager) or not isinstance(mouse_controller, MouseController):
             return False
         
         # 如果使用上次匹配结果
@@ -99,9 +99,12 @@ class WaitForWindowStep(WorkflowStep):
         """执行步骤"""
         window_manager = context.get('window_manager')
         
-        if not window_manager:
+        if not isinstance(window_manager, WindowManager):
             return False
         
+        windows = window_manager.get_all_windows()
+        print(windows)
+
         # 等待窗口出现
         window_info = window_manager.wait_for_window(
             title=self.window_title,
@@ -128,7 +131,7 @@ class ActivateWindowStep(WorkflowStep):
         """执行步骤"""
         window_manager = context.get('window_manager')
         
-        if not window_manager:
+        if not isinstance(window_manager, WindowManager):
             return False
         
         # 获取要激活的窗口
@@ -187,7 +190,7 @@ class BasicExampleWorkflow(BaseWorkflow):
         
         # 添加工作流步骤
         self.add_step(WaitForWindowStep("等待记事本窗口", {
-            'window_title': '记事本',
+            'window_title': 'notepad',
             'timeout': 10.0
         }))
         
@@ -200,14 +203,14 @@ class BasicExampleWorkflow(BaseWorkflow):
         }))
         
         # 如果有模板，可以添加模板相关步骤
-        # self.add_step(WaitForTemplateStep("等待按钮出现", {
-        #     'template_name': 'basic_example.button',
-        #     'timeout': 5.0
-        # }))
+        self.add_step(WaitForTemplateStep("等待按钮出现", {
+            'template_name': 'basic_example.button',
+            'timeout': 5.0
+        }))
         
-        # self.add_step(ClickTemplateStep("点击按钮", {
-        #     'template_name': 'basic_example.button'
-        # }))
+        self.add_step(ClickTemplateStep("点击按钮", {
+            'template_name': 'basic_example.button'
+        }))
         
         self.logger.info("基础示例工作流设置完成")
 
@@ -256,7 +259,7 @@ class SimpleClickStep(WorkflowStep):
         """执行步骤"""
         mouse_controller = context.get('mouse_controller')
         
-        if not mouse_controller:
+        if not isinstance(mouse_controller, MouseController):
             return False
         
         return mouse_controller.click(self.x, self.y)

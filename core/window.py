@@ -219,9 +219,9 @@ class WindowManager(LoggerMixin):
         return result
     
     def wait_for_window(self, 
-                       title: str = None,
-                       class_name: str = None,
-                       process_name: str = None,
+                       title: Optional[str] = None,
+                       class_name: Optional[str] = None,
+                       process_name: Optional[str] = None,
                        timeout: Optional[float] = None) -> Optional[WindowInfo]:
         """
         等待窗口出现
