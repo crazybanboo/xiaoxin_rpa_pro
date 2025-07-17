@@ -65,7 +65,7 @@ xiaoxin_rpa_pro/
 │   └── default.yaml
 ├── core/                # 核心模块
 │   ├── config.py        # 配置管理
-│   ├── logger.py        # 日志系统
+│   ├── logger.py        # 日志系统（支持相对路径显示）
 │   ├── vision.py        # 图像识别
 │   ├── mouse.py         # 鼠标操作
 │   ├── window.py        # 窗口管理

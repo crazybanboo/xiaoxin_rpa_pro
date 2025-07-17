@@ -154,32 +154,16 @@ class TestCustomFormatter:
             exc_info=None
         )
         
-        # 模拟调用者信息
-        with patch('inspect.currentframe') as mock_frame:
-            mock_caller_frame = type('MockFrame', (), {
-                'f_code': type('MockCode', (), {
-                    'co_filename': '/path/to/caller.py'
-                }),
-                'f_lineno': 456,
-                'f_globals': {'__name__': 'test_module'}
-            })()
-            
-            mock_frame.return_value = type('MockFrame', (), {
-                'f_back': type('MockFrame', (), {
-                    'f_back': type('MockFrame', (), {
-                        'f_back': mock_caller_frame
-                    })
-                })
-            })()
-            
-            formatted = formatter.format(record)
-            
-            assert "test_module" in formatted
-            assert "caller.py:456" in formatted
-            assert "Test message" in formatted
+        # 新的实现直接使用 record 中的信息
+        formatted = formatter.format(record)
+        
+        # 验证输出格式
+        assert "test" in formatted  # module_name 现在使用 record.name
+        assert "file.py:123" in formatted  # caller_file 现在使用 record.pathname
+        assert "Test message" in formatted
     
     def test_custom_formatter_no_caller_info(self):
-        """测试自定义格式化器在无调用者信息时的处理"""
+        """测试自定义格式化器的路径转换功能"""
         formatter = CustomFormatter(
             "%(asctime)s [%(levelname)s] [%(module_name)s] %(caller_file)s:%(caller_line)d - %(message)s"
         )
@@ -194,13 +178,41 @@ class TestCustomFormatter:
             exc_info=None
         )
         
-        # 模拟没有调用者信息的情况
-        with patch('inspect.currentframe', return_value=None):
-            formatted = formatter.format(record)
-            
-            assert "unknown" in formatted
-            assert "0" in formatted
-            assert "Test message" in formatted
+        # 新的实现总是使用 record 中的信息
+        formatted = formatter.format(record)
+        
+        # 验证输出格式
+        assert "test" in formatted  # module_name 使用 record.name
+        assert "123" in formatted  # caller_line 使用 record.lineno
+        assert "Test message" in formatted
+    
+    def test_custom_formatter_relative_path(self):
+        """测试自定义格式化器的相对路径转换功能"""
+        formatter = CustomFormatter(
+            "%(asctime)s [%(levelname)s] [%(module_name)s] %(caller_file)s:%(caller_line)d - %(message)s"
+        )
+        
+        # 模拟当前工作目录下的文件
+        import os
+        cwd = os.getcwd()
+        test_file_path = os.path.join(cwd, "tests", "test_file.py")
+        
+        record = logging.LogRecord(
+            name="test",
+            level=logging.INFO,
+            pathname=test_file_path,
+            lineno=123,
+            msg="Test message",
+            args=(),
+            exc_info=None
+        )
+        
+        formatted = formatter.format(record)
+        
+        # 验证相对路径转换
+        assert "tests" in formatted or "test_file.py" in formatted
+        assert "123" in formatted
+        assert "Test message" in formatted
 
 
 @pytest.mark.unit

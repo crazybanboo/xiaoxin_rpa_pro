@@ -16,32 +16,24 @@ class CustomFormatter(logging.Formatter):
     """自定义日志格式化器"""
     
     def format(self, record):
-        # 获取调用者信息
-        frame = inspect.currentframe()
+        # 使用 logging record 中已有的信息
+        full_path = record.pathname
+        
+        # 尝试获取相对于项目根目录的路径
         try:
-            # 向上查找到实际的调用者
-            if frame and frame.f_back and frame.f_back.f_back:
-                caller_frame = frame.f_back.f_back.f_back
-                if caller_frame:
-                    caller_file = os.path.basename(caller_frame.f_code.co_filename)
-                    caller_line = caller_frame.f_lineno
-                    module_name = caller_frame.f_globals.get('__name__', 'unknown')
-                else:
-                    caller_file = 'unknown'
-                    caller_line = 0
-                    module_name = 'unknown'
+            # 获取当前工作目录
+            cwd = os.getcwd()
+            if full_path.startswith(cwd):
+                caller_file = os.path.relpath(full_path, cwd)
             else:
-                caller_file = 'unknown'
-                caller_line = 0
-                module_name = 'unknown'
-        finally:
-            if frame:
-                del frame
+                caller_file = full_path
+        except:
+            caller_file = full_path
         
         # 设置自定义字段
         record.caller_file = caller_file
-        record.caller_line = caller_line
-        record.module_name = module_name
+        record.caller_line = record.lineno
+        record.module_name = record.name
         
         return super().format(record)
 
