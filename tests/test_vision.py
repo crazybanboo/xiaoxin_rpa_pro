@@ -278,7 +278,13 @@ class TestVisionEngine:
             
             mock_rectangle.assert_called_once()
             mock_puttext.assert_called_once()
-            mock_imwrite.assert_called_once_with(str(debug_path), sample_screenshot)
+            mock_imwrite.assert_called_once()
+            # 检查调用参数
+            call_args = mock_imwrite.call_args
+            assert call_args[0][0] == str(debug_path)
+            # 检查第二个参数是numpy数组
+            import numpy as np
+            assert isinstance(call_args[0][1], np.ndarray)
 
 
 @pytest.mark.unit

@@ -5,6 +5,7 @@
 import pytest
 import logging
 import tempfile
+import shutil
 from pathlib import Path
 from unittest.mock import patch
 
@@ -25,17 +26,26 @@ class TestSetupLogger:
     
     def test_setup_logger_with_params(self):
         """测试带参数设置日志记录器"""
-        with tempfile.TemporaryDirectory() as temp_dir:
+        temp_dir = tempfile.mkdtemp()
+        try:
             logger = setup_logger(
-                name="test_logger",
+                name="test_logger_unique",
                 level="DEBUG",
                 log_dir=temp_dir,
                 debug=False
             )
             
-            assert logger.name == "test_logger"
+            assert logger.name == "test_logger_unique"
             assert logger.level == logging.DEBUG
             assert len(logger.handlers) >= 2  # 控制台 + 文件
+            
+        finally:
+            # 强制关闭所有文件处理器
+            for handler in logger.handlers:
+                if hasattr(handler, 'close'):
+                    handler.close()
+            # 清理临时目录
+            shutil.rmtree(temp_dir, ignore_errors=True)
     
     def test_setup_logger_debug_mode(self):
         """测试调试模式下的日志设置"""
@@ -56,12 +66,21 @@ class TestSetupLogger:
     
     def test_setup_logger_creates_log_dir(self):
         """测试日志记录器创建日志目录"""
-        with tempfile.TemporaryDirectory() as temp_dir:
+        temp_dir = tempfile.mkdtemp()
+        try:
             log_dir = Path(temp_dir) / "custom_logs"
-            setup_logger(log_dir=str(log_dir), debug=False)
+            logger = setup_logger(name="test_dir_logger", log_dir=str(log_dir), debug=False)
             
             assert log_dir.exists()
             assert log_dir.is_dir()
+            
+        finally:
+            # 强制关闭所有文件处理器
+            for handler in logger.handlers:
+                if hasattr(handler, 'close'):
+                    handler.close()
+            # 清理临时目录
+            shutil.rmtree(temp_dir, ignore_errors=True)
 
 
 @pytest.mark.unit
@@ -219,7 +238,8 @@ class TestLoggingFunctionality:
     
     def test_file_logging(self):
         """测试文件日志记录"""
-        with tempfile.TemporaryDirectory() as temp_dir:
+        temp_dir = tempfile.mkdtemp()
+        try:
             logger = setup_logger(
                 name="file_test",
                 log_dir=temp_dir,
@@ -228,6 +248,11 @@ class TestLoggingFunctionality:
             
             logger.info("File log test message")
             logger.error("File error message")
+            
+            # 强制刷新文件句柄
+            for handler in logger.handlers:
+                if hasattr(handler, 'flush'):
+                    handler.flush()
             
             log_dir = Path(temp_dir)
             
@@ -238,6 +263,14 @@ class TestLoggingFunctionality:
             # 检查错误日志文件是否存在
             error_log = log_dir / "file_test_error.log"
             assert error_log.exists()
+            
+        finally:
+            # 强制关闭所有文件处理器
+            for handler in logger.handlers:
+                if hasattr(handler, 'close'):
+                    handler.close()
+            # 清理临时目录
+            shutil.rmtree(temp_dir, ignore_errors=True)
     
     def test_logger_handler_cleanup(self):
         """测试日志处理器清理"""

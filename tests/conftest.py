@@ -180,7 +180,9 @@ def mock_pyautogui():
          patch('pyautogui.scroll') as mock_scroll, \
          patch('pyautogui.screenshot') as mock_screenshot, \
          patch('pyautogui.position') as mock_position, \
-         patch('pyautogui.size') as mock_size:
+         patch('pyautogui.size') as mock_size, \
+         patch('pyautogui.mouseDown') as mock_mousedown, \
+         patch('pyautogui.mouseUp') as mock_mouseup:
         
         mock_position.return_value = MagicMock(x=500, y=500)
         mock_size.return_value = MagicMock(width=1920, height=1080)
@@ -192,7 +194,9 @@ def mock_pyautogui():
             'scroll': mock_scroll,
             'screenshot': mock_screenshot,
             'position': mock_position,
-            'size': mock_size
+            'size': mock_size,
+            'mouseDown': mock_mousedown,
+            'mouseUp': mock_mouseup
         }
 
 

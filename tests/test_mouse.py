@@ -3,7 +3,7 @@
 """
 
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, call
 
 from core.mouse import MouseController, MouseButton, create_mouse_controller
 from core.vision import MatchResult
@@ -306,9 +306,13 @@ class TestMouseController:
         result = controller.click_and_drag(100, 200, 300, 400)
         
         assert result is True
-        mock_pyautogui['moveTo'].assert_called_with(100, 200, duration=0.5)
+        # 检查moveTo被调用了两次
+        assert mock_pyautogui['moveTo'].call_count == 2
+        # 检查第一次和第二次调用
+        calls = mock_pyautogui['moveTo'].call_args_list
+        assert calls[0] == call(100, 200, duration=0.5)
+        assert calls[1] == call(300, 400, duration=0.5)
         mock_pyautogui['mouseDown'].assert_called_once()
-        mock_pyautogui['moveTo'].assert_called_with(300, 400, duration=0.5)
         mock_pyautogui['mouseUp'].assert_called_once()
     
     def test_click_and_drag_with_duration(self, mock_pyautogui):
@@ -318,9 +322,13 @@ class TestMouseController:
         result = controller.click_and_drag(100, 200, 300, 400, duration=2.0)
         
         assert result is True
-        mock_pyautogui['moveTo'].assert_called_with(100, 200, duration=0.5)
+        # 检查moveTo被调用了两次
+        assert mock_pyautogui['moveTo'].call_count == 2
+        # 检查第一次和第二次调用
+        calls = mock_pyautogui['moveTo'].call_args_list
+        assert calls[0] == call(100, 200, duration=0.5)
+        assert calls[1] == call(300, 400, duration=2.0)
         mock_pyautogui['mouseDown'].assert_called_once()
-        mock_pyautogui['moveTo'].assert_called_with(300, 400, duration=2.0)
         mock_pyautogui['mouseUp'].assert_called_once()
     
     def test_click_and_drag_move_fail(self, mock_pyautogui):

@@ -20,17 +20,23 @@ class CustomFormatter(logging.Formatter):
         frame = inspect.currentframe()
         try:
             # 向上查找到实际的调用者
-            caller_frame = frame.f_back.f_back.f_back
-            if caller_frame:
-                caller_file = os.path.basename(caller_frame.f_code.co_filename)
-                caller_line = caller_frame.f_lineno
-                module_name = caller_frame.f_globals.get('__name__', 'unknown')
+            if frame and frame.f_back and frame.f_back.f_back:
+                caller_frame = frame.f_back.f_back.f_back
+                if caller_frame:
+                    caller_file = os.path.basename(caller_frame.f_code.co_filename)
+                    caller_line = caller_frame.f_lineno
+                    module_name = caller_frame.f_globals.get('__name__', 'unknown')
+                else:
+                    caller_file = 'unknown'
+                    caller_line = 0
+                    module_name = 'unknown'
             else:
                 caller_file = 'unknown'
                 caller_line = 0
                 module_name = 'unknown'
         finally:
-            del frame
+            if frame:
+                del frame
         
         # 设置自定义字段
         record.caller_file = caller_file

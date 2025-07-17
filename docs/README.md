@@ -28,7 +28,7 @@ cd xiaoxin_rpa_pro
 ### 2. 创建虚拟环境
 ```bash
 python -m venv .env
-.env\\Scripts\\activate  # Windows
+.env\\Scripts\\activate.ps1  # Windows
 ```
 
 ### 3. 安装依赖
