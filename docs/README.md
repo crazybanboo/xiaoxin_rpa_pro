@@ -192,42 +192,42 @@ if template:
 
 ```yaml
 app:
-  name: \"Xiaoxin RPA Pro\"
-  version: \"1.0.0\"
-  debug: false
+  name: \"Xiaoxin RPA Pro\"      # 应用程序名称
+  version: \"1.0.0\"             # 应用程序版本号
+  debug: false                 # 是否启用调试模式
 
 logging:
-  level: \"INFO\"
-  file_enabled: true
-  console_enabled: true
+  level: \"INFO\"                # 日志级别（DEBUG/INFO/WARNING/ERROR/CRITICAL）
+  file_enabled: true           # 是否启用文件日志输出
+  console_enabled: true        # 是否启用控制台日志输出
   rotation:
     enabled: true        # 启用日志滚动
     max_bytes: 10485760  # 单个日志文件最大大小（默认10MB）
     backup_count: 5      # 保留的备份文件数量（默认5个）
 
 vision:
-  confidence_threshold: 0.8
-  match_method: \"cv2.TM_CCOEFF_NORMED\"
-  grayscale: true
+  confidence_threshold: 0.8    # 图像识别置信度阈值（0-1之间）
+  match_method: \"cv2.TM_CCOEFF_NORMED\"  # 模板匹配算法
+  grayscale: true              # 是否使用灰度模式进行图像识别
 
 mouse:
-  click_delay: 0.1
-  move_duration: 0.5
-  fail_safe: true
+  click_delay: 0.1             # 点击操作后的延迟时间（秒）
+  move_duration: 0.5           # 鼠标移动持续时间（秒）
+  fail_safe: true              # 是否启用失败安全机制（鼠标移动到屏幕角落停止）
 
 window:
-  search_timeout: 5.0
-  activate_timeout: 2.0
+  search_timeout: 5.0          # 窗口搜索超时时间（秒）
+  activate_timeout: 2.0        # 窗口激活超时时间（秒）
 
 workflow:
-  step_delay: 0.5
-  error_retry: 3
-  screenshot_on_error: true
+  step_delay: 0.5              # 工作流步骤间延迟时间（秒）
+  error_retry: 3               # 错误重试次数
+  screenshot_on_error: true    # 发生错误时是否截屏
 
 templates:
-  base_path: \"templates\"
-  auto_resolution: true
-  supported_formats: [\".png\", \".jpg\", \".jpeg\", \".bmp\"]
+  base_path: \"templates\"       # 模板文件基础路径
+  auto_resolution: true        # 是否自动选择分辨率匹配的模板
+  supported_formats: [\".png\", \".jpg\", \".jpeg\", \".bmp\"]  # 支持的图像格式
 ```
 
 ## 测试

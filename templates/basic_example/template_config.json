@@ -1,0 +1,10 @@
+{
+  "name": "basic_example",
+  "description": "Template configuration for basic_example",
+  "confidence_threshold": 0.8,
+  "match_method": "TM_CCOEFF_NORMED",
+  "region": null,
+  "wait_timeout": 10.0,
+  "retry_count": 3,
+  "retry_interval": 0.5
+}
