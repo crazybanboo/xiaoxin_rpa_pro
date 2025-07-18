@@ -10,6 +10,7 @@
 - **模板管理**：多分辨率模板自动适配
 - **工作流引擎**：灵活的步骤化任务执行框架
 - **配置管理**：支持YAML和JSON格式配置文件
+- **日志系统**：支持滚动日志，防止日志文件过大
 
 ## 系统要求
 
@@ -199,6 +200,10 @@ logging:
   level: \"INFO\"
   file_enabled: true
   console_enabled: true
+  rotation:
+    enabled: true        # 启用日志滚动
+    max_bytes: 10485760  # 单个日志文件最大大小（默认10MB）
+    backup_count: 5      # 保留的备份文件数量（默认5个）
 
 vision:
   confidence_threshold: 0.8
@@ -276,6 +281,13 @@ A:
 2. 使用调试模式运行
 3. 确认所有依赖组件正常
 4. 检查配置文件是否正确
+
+### Q: 日志文件太大怎么办？
+A:
+1. 启用日志滚动功能（在配置文件中设置 `logging.rotation.enabled: true`）
+2. 调整最大文件大小（`max_bytes`）和备份数量（`backup_count`）
+3. 定期清理旧的日志文件
+4. 调整日志级别以减少日志输出
 
 ## 开发指南
 

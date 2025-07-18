@@ -4,10 +4,11 @@
 
 import pytest
 import logging
+import logging.handlers
 import tempfile
 import shutil
 from pathlib import Path
-from unittest.mock import patch
+from typing import cast
 
 from core.logger import setup_logger, get_logger, LoggerMixin, CustomFormatter
 
@@ -299,3 +300,199 @@ class TestLoggingFunctionality:
         # 处理器数量应该相同（因为清理了之前的处理器）
         assert handler_count1 == handler_count2
         assert logger1 is logger2  # 应该是同一个logger实例
+
+
+@pytest.mark.unit
+class TestRotatingLogger:
+    """测试滚动日志功能"""
+    
+    def test_rotating_logger_enabled(self):
+        """测试启用滚动日志功能"""
+        temp_dir = tempfile.mkdtemp()
+        try:
+            config = {
+                'rotation': {
+                    'enabled': True,
+                    'max_bytes': 1024,  # 1KB for testing
+                    'backup_count': 3
+                }
+            }
+            
+            logger = setup_logger(
+                name="test_rotating",
+                log_dir=temp_dir,
+                debug=False,
+                config=config
+            )
+            
+            # 检查是否使用了RotatingFileHandler
+            file_handlers = [h for h in logger.handlers 
+                           if isinstance(h, logging.handlers.RotatingFileHandler)]
+            assert len(file_handlers) >= 1
+            
+            # 检查配置是否正确
+            main_handler = None
+            error_handler = None
+            for handler in file_handlers:
+                handler = cast(logging.handlers.RotatingFileHandler, handler)
+                if 'error' in handler.baseFilename:
+                    error_handler = handler
+                else:
+                    main_handler = handler
+            
+            if main_handler:
+                assert main_handler.maxBytes == 1024
+                assert main_handler.backupCount == 3
+            
+            if error_handler:
+                assert error_handler.maxBytes == 1024
+                assert error_handler.backupCount == 3
+                
+        finally:
+            # 清理
+            for handler in logger.handlers:
+                if hasattr(handler, 'close'):
+                    handler.close()
+            shutil.rmtree(temp_dir, ignore_errors=True)
+    
+    def test_rotating_logger_disabled(self):
+        """测试禁用滚动日志功能"""
+        temp_dir = tempfile.mkdtemp()
+        try:
+            config = {
+                'rotation': {
+                    'enabled': False,
+                    'max_bytes': 1024,
+                    'backup_count': 3
+                }
+            }
+            
+            logger = setup_logger(
+                name="test_no_rotating",
+                log_dir=temp_dir,
+                debug=False,
+                config=config
+            )
+            
+            # 检查是否使用了普通的FileHandler
+            rotating_handlers = [h for h in logger.handlers 
+                               if isinstance(h, logging.handlers.RotatingFileHandler)]
+            assert len(rotating_handlers) == 0
+            
+            file_handlers = [h for h in logger.handlers 
+                           if isinstance(h, logging.FileHandler) and 
+                           not isinstance(h, logging.handlers.RotatingFileHandler)]
+            assert len(file_handlers) >= 1
+                
+        finally:
+            # 清理
+            for handler in logger.handlers:
+                if hasattr(handler, 'close'):
+                    handler.close()
+            shutil.rmtree(temp_dir, ignore_errors=True)
+    
+    def test_rotating_logger_default_config(self):
+        """测试默认配置的滚动日志"""
+        temp_dir = tempfile.mkdtemp()
+        try:
+            # 不传递config参数，应该使用默认配置（非滚动）
+            logger = setup_logger(
+                name="test_default_config",
+                log_dir=temp_dir,
+                debug=False
+            )
+            
+            # 检查是否使用了普通的FileHandler
+            rotating_handlers = [h for h in logger.handlers 
+                               if isinstance(h, logging.handlers.RotatingFileHandler)]
+            assert len(rotating_handlers) == 0
+                
+        finally:
+            # 清理
+            for handler in logger.handlers:
+                if hasattr(handler, 'close'):
+                    handler.close()
+            shutil.rmtree(temp_dir, ignore_errors=True)
+    
+    def test_rotating_logger_file_creation(self):
+        """测试滚动日志文件创建"""
+        temp_dir = tempfile.mkdtemp()
+        try:
+            config = {
+                'rotation': {
+                    'enabled': True,
+                    'max_bytes': 100,  # 很小的文件大小用于测试
+                    'backup_count': 2
+                }
+            }
+            
+            logger = setup_logger(
+                name="test_file_creation",
+                log_dir=temp_dir,
+                debug=False,
+                config=config
+            )
+            
+            # 写入大量日志触发滚动
+            for i in range(20):
+                logger.info(f"This is a test log message number {i} with some extra text to make it longer")
+            
+            # 强制刷新
+            for handler in logger.handlers:
+                if hasattr(handler, 'flush'):
+                    handler.flush()
+            
+            log_dir = Path(temp_dir)
+            log_files = list(log_dir.glob("test_file_creation*"))
+            
+            # 应该有主日志文件和可能的备份文件
+            assert len(log_files) >= 1
+            
+            # 检查是否有.log文件
+            main_logs = [f for f in log_files if f.name == "test_file_creation.log"]
+            assert len(main_logs) == 1
+                
+        finally:
+            # 清理
+            for handler in logger.handlers:
+                if hasattr(handler, 'close'):
+                    handler.close()
+            shutil.rmtree(temp_dir, ignore_errors=True)
+    
+    def test_rotating_logger_with_config_validation(self):
+        """测试滚动日志配置验证"""
+        temp_dir = tempfile.mkdtemp()
+        try:
+            # 测试不完整的配置
+            config = {
+                'rotation': {
+                    'enabled': True
+                    # 缺少max_bytes和backup_count，应该使用默认值
+                }
+            }
+            
+            logger = setup_logger(
+                name="test_config_validation",
+                log_dir=temp_dir,
+                debug=False,
+                config=config
+            )
+            
+            # 检查是否使用了RotatingFileHandler
+            rotating_handlers = [h for h in logger.handlers 
+                               if isinstance(h, logging.handlers.RotatingFileHandler)]
+            assert len(rotating_handlers) >= 1
+            
+            # 检查默认值是否生效
+            for handler in rotating_handlers:
+                handler = cast(logging.handlers.RotatingFileHandler, handler)
+                if not 'error' in handler.baseFilename:
+                    assert handler.maxBytes == 10485760  # 默认10MB
+                    assert handler.backupCount == 5  # 默认5个备份
+                
+        finally:
+            # 清理
+            for handler in logger.handlers:
+                if hasattr(handler, 'close'):
+                    handler.close()
+            shutil.rmtree(temp_dir, ignore_errors=True)

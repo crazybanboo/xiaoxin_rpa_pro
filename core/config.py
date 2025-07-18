@@ -177,7 +177,12 @@ def create_default_config(config_path: Union[str, Path]) -> None:
         'logging': {
             'level': 'INFO',
             'file_enabled': True,
-            'console_enabled': True
+            'console_enabled': True,
+            'rotation': {
+                'enabled': True,
+                'max_bytes': 10485760,  # 10MB
+                'backup_count': 5
+            }
         },
         'vision': {
             'confidence_threshold': 0.8,

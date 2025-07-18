@@ -1,34 +1,34 @@
 # Core dependencies
-opencv-python==4.8.1.78
-pyautogui==0.9.54
-pywin32==306
+opencv-python
+pyautogui
+pywin32
 
 # Image processing and computer vision
-numpy==1.24.3
-Pillow==10.0.1
+numpy
+Pillow
 
 # GUI automation utilities
-pynput==1.7.6
-keyboard==0.13.5
-mouse==0.7.1
+pynput
+keyboard
+mouse
 
 # Configuration and data handling
-PyYAML==6.0.1
-configparser==6.0.0
+PyYAML
+configparser
 
 # Logging and utilities
-loguru==0.7.2
+loguru
 
 # Testing framework
-pytest==7.4.2
-pytest-cov==4.1.0
+pytest
+pytest-cov
 
 # Development tools
-black==23.7.0
-flake8==6.0.0
-mypy==1.5.1
+black
+flake8
+mypy
 
 # Packaging
-nuitka==1.8.4
+nuitka
 
 psutil

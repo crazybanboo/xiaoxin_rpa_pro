@@ -50,15 +50,19 @@ def main():
     
     args = parser.parse_args()
     
-    # 设置日志
-    logger = setup_logger(
-        level=args.log_level,
-        debug=args.debug
-    )
-    
     try:
-        # 加载配置
+        # 先加载配置
         config = Config(args.config)
+        
+        # 从配置中获取日志配置
+        log_config = config.get('logging', {})
+        
+        # 设置日志
+        logger = setup_logger(
+            level=args.log_level,
+            debug=args.debug,
+            config=log_config
+        )
         logger.info(f"配置文件加载成功: {args.config}")
         
         # 初始化工作流管理器

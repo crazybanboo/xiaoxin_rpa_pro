@@ -4,11 +4,12 @@
 """
 
 import logging
+import logging.handlers
 import os
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, Any
 import inspect
 
 
@@ -42,7 +43,8 @@ def setup_logger(
     name: str = "xiaoxin_rpa", 
     level: str = "INFO",
     log_dir: str = "logs",
-    debug: bool = False
+    debug: bool = False,
+    config: Optional[Dict[str, Any]] = None
 ) -> logging.Logger:
     """
     设置日志记录器
@@ -52,6 +54,7 @@ def setup_logger(
         level: 日志级别
         log_dir: 日志目录
         debug: 是否调试模式
+        config: 日志配置字典，包含滚动日志配置
     
     Returns:
         配置好的日志记录器
@@ -79,18 +82,60 @@ def setup_logger(
     
     # 文件处理器
     if not debug:
-        # 按日期创建日志文件
-        today = datetime.now().strftime("%Y-%m-%d")
-        log_file = log_path / f"{name}_{today}.log"
+        # 检查是否启用日志滚动
+        rotation_enabled = False
+        max_bytes = 10485760  # 默认10MB
+        backup_count = 5  # 默认保留5个文件
         
-        file_handler = logging.FileHandler(log_file, encoding='utf-8')
+        if config and 'rotation' in config:
+            rotation_config = config['rotation']
+            rotation_enabled = rotation_config.get('enabled', False)
+            max_bytes = rotation_config.get('max_bytes', 10485760)
+            backup_count = rotation_config.get('backup_count', 5)
+        
+        if rotation_enabled:
+            # 使用滚动文件处理器
+            log_file = log_path / f"{name}.log"
+            file_handler = logging.handlers.RotatingFileHandler(
+                log_file, 
+                maxBytes=max_bytes,
+                backupCount=backup_count,
+                encoding='utf-8'
+            )
+        else:
+            # 使用传统的按日期创建日志文件
+            today = datetime.now().strftime("%Y-%m-%d")
+            log_file = log_path / f"{name}_{today}.log"
+            file_handler = logging.FileHandler(log_file, encoding='utf-8')
+        
         file_handler.setLevel(logging.DEBUG)
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
     
     # 错误日志文件
     error_log_file = log_path / f"{name}_error.log"
-    error_handler = logging.FileHandler(error_log_file, encoding='utf-8')
+    
+    # 错误日志也支持滚动
+    rotation_enabled = False
+    max_bytes = 10485760
+    backup_count = 5
+    
+    if config and 'rotation' in config:
+        rotation_config = config['rotation']
+        rotation_enabled = rotation_config.get('enabled', False)
+        max_bytes = rotation_config.get('max_bytes', 10485760)
+        backup_count = rotation_config.get('backup_count', 5)
+    
+    if rotation_enabled:
+        error_handler = logging.handlers.RotatingFileHandler(
+            error_log_file,
+            maxBytes=max_bytes,
+            backupCount=backup_count,
+            encoding='utf-8'
+        )
+    else:
+        error_handler = logging.FileHandler(error_log_file, encoding='utf-8')
+    
     error_handler.setLevel(logging.ERROR)
     error_handler.setFormatter(formatter)
     logger.addHandler(error_handler)
