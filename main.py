@@ -89,7 +89,7 @@ def main():
         
         # 执行工作流
         logger.info(f"开始执行工作流: {args.workflow}")
-        success = workflow_manager.execute(args.workflow, lambda: stop_flag.is_set())
+        success = workflow_manager.execute(args.workflow, stop_flag)
         
         if success:
             logger.info(f"工作流执行成功: {args.workflow}")

@@ -4,12 +4,13 @@
 
 import time
 from pathlib import Path
-from core.workflow import BaseWorkflow, WorkflowStep
+from core.workflow import BaseWorkflow, WorkflowStep, LoopStartStep, LoopEndStep, ConditionalJumpStep
 from core.vision import VisionEngine
 from core.mouse import MouseController, MouseButton
 from core.window import WindowManager
 from core.template import TemplateManager
 from core.config import Config
+from core.utils import interruptible_sleep, interruptible_sleep_event
 
 class WaitForWxWorkWindowStep(WorkflowStep):
     """等待企业微信窗口出现"""
@@ -242,7 +243,9 @@ class ClickMultiTemplateStep(WorkflowStep):
             if success:
                 clicked_count += 1
                 if self.click_delay > 0:
-                    time.sleep(self.click_delay)
+                    stop_event = context.get('_stop_event')
+                    if not interruptible_sleep_event(self.click_delay, stop_event):
+                        return False
             else:
                 pass
 
@@ -260,6 +263,7 @@ class ClickSpecialTemplateStep(WorkflowStep):
         vision_engine = context.get('vision_engine')
         template_manager = context.get('template_manager')
         mouse_controller = context.get('mouse_controller')
+        stop_event = context.get('_stop_event')
         
         if not isinstance(vision_engine, VisionEngine) or not isinstance(template_manager, TemplateManager) or \
             not isinstance(mouse_controller, MouseController):
@@ -287,13 +291,17 @@ class ClickSpecialTemplateStep(WorkflowStep):
         # step1: 特殊手法点击一遍
         for match_result in match_results[:3]:
             mouse_controller.mouse_down(match_result.center[0], match_result.center[1], button=MouseButton.LEFT)
-            time.sleep(0.05)
+            if not interruptible_sleep_event(0.05, stop_event):
+                return False
             mouse_controller.mouse_down(match_result.center[0], match_result.center[1], button=MouseButton.RIGHT)
-            time.sleep(0.05)
+            if not interruptible_sleep_event(0.05, stop_event):
+                return False
             mouse_controller.mouse_up(match_result.center[0], match_result.center[1], button=MouseButton.RIGHT)
-            time.sleep(0.05)
+            if not interruptible_sleep_event(0.05, stop_event):
+                return False
             mouse_controller.mouse_up(match_result.center[0], match_result.center[1], button=MouseButton.LEFT)
-            time.sleep(0.05)
+            if not interruptible_sleep_event(0.05, stop_event):
+                return False
 
         # step2: 取消选中他们再选中他们
         for match_result in match_results[:3]:
@@ -327,16 +335,24 @@ class ClickSpecialTemplateStep(WorkflowStep):
         return True
 
 class DelayStep(WorkflowStep):
-    """延迟步骤"""
+    """延迟步骤 如果条件为True，则不延迟，默认或者False则会延迟"""
     
     def __init__(self, name: str, config: dict):
         super().__init__(name, config)
         self.delay = config.get('delay', 1.0)
+        self.condition_key = config.get('condition_key')  # 检查上下文中的键
+        self.condition_value = config.get('condition_value')  # 期望的值
+        self.condition_type = config.get('condition_type', 'equals')  # equals, not_equals, exists, not_exists
     
     def execute(self, context: dict) -> bool:
         """执行步骤"""
-        time.sleep(self.delay)
-        return True
+        stop_event = context.get('_stop_event')
+        if self.condition_key:
+            if self.condition_key in context:
+                if self.condition_type == 'equals':
+                    if context[self.condition_key] == self.condition_value:
+                        return True
+        return interruptible_sleep_event(self.delay, stop_event)
 
 class CalculateChatBoxRectStep(WorkflowStep):
     """计算聊天框矩形区域"""
@@ -399,6 +415,41 @@ class CalculateChatBoxRectStep(WorkflowStep):
         
         return True
 
+class MoveToChatBoxAndScrollStep(WorkflowStep):
+    """移动到聊天框中心点并向下滚动"""
+    
+    def __init__(self, name: str, config: dict):
+        super().__init__(name, config)
+        self.scroll_count = config.get('scroll_count', 3)  # 默认滚动3次
+        self.scroll_direction = config.get('scroll_direction', 'up')  # 滚动方向
+    
+    def execute(self, context: dict) -> bool:
+        """执行步骤"""
+        mouse_controller = context.get('mouse_controller')
+        
+        if not isinstance(mouse_controller, MouseController):
+            return False
+        
+        # 获取聊天框矩形区域
+        chatbox_rect = context.get('chatbox_rect')
+        if not chatbox_rect:
+            return False
+        
+        # 计算聊天框中心点
+        center_x = (chatbox_rect[0] + chatbox_rect[2]) // 2
+        center_y = (chatbox_rect[1] + chatbox_rect[3]) // 2
+        
+        # 移动鼠标到聊天框中心点
+        mouse_controller.move_to(center_x, center_y)
+        
+        # 向下滚动指定次数
+        if self.scroll_direction == 'down':
+            mouse_controller.scroll_down(clicks=self.scroll_count, strategy='multiple')
+        else:
+            mouse_controller.scroll_up(clicks=self.scroll_count, strategy='multiple')
+        
+        return True
+
 class WaitForMessageStep(WorkflowStep):
     """等待消息出现"""
     
@@ -440,6 +491,53 @@ class WaitForMessageStep(WorkflowStep):
         
         return True
 
+
+class WaitForMessageWithTimeoutStep(WorkflowStep):
+    """等待消息出现（支持超时标记）"""
+    
+    def __init__(self, name: str, config: dict):
+        super().__init__(name, config)
+        self.message_templates = config.get('message_templates', [
+            'wxwork_auto.at_wechat_message',
+            'wxwork_auto.at_wechat_miniprogram', 
+            'wxwork_auto.at_wechat_gongzhonghao',
+        ])
+        self.timeout = config.get('timeout', 10.0)
+
+    def execute(self, context: dict) -> bool:
+        """执行步骤 - 超时时不返回False，而是设置标记"""
+        vision_engine = context.get('vision_engine')
+        template_manager = context.get('template_manager')
+        mouse_controller = context.get('mouse_controller')
+
+        if not isinstance(vision_engine, VisionEngine) or not isinstance(template_manager, TemplateManager) or not isinstance(mouse_controller, MouseController):
+            return False
+        
+        # 获取聊天框矩形区域
+        chatbox_rect = context['chatbox_rect']
+
+        # 查找微信消息
+        message_found = None
+        for template_name in self.message_templates:
+            template_item = template_manager.get_template(template_name)
+            if template_item:
+                match_result = vision_engine.wait_for_template(template_item.path, timeout=self.timeout, region=chatbox_rect)
+                if match_result:
+                    message_found = match_result
+                    break
+        
+        if not message_found:
+            # 超时时设置标记而不是返回False
+            context['message_timeout'] = True
+            context.pop('message_found', None)  # 清除之前的消息
+            self.logger.info("等待消息超时，设置超时标记")
+        else:
+            context['message_timeout'] = False
+            context['message_found'] = message_found
+            self.logger.info("找到消息，清除超时标记")
+        
+        return True  # 总是返回True，让流程继续
+
 class FindExternalButtonStep(WorkflowStep):
     """查找并点击【外部】按钮"""
     
@@ -453,6 +551,7 @@ class FindExternalButtonStep(WorkflowStep):
         vision_engine = context.get('vision_engine')
         template_manager = context.get('template_manager')
         mouse_controller = context.get('mouse_controller')
+        stop_event = context.get('_stop_event')
         
         if not isinstance(vision_engine, VisionEngine) or not isinstance(template_manager, TemplateManager) or not isinstance(mouse_controller, MouseController):
             return False
@@ -474,7 +573,8 @@ class FindExternalButtonStep(WorkflowStep):
         # 点击外部按钮
         success = mouse_controller.click_match_result(topmost_button)
         if success:
-            time.sleep(self.click_delay)
+            if not interruptible_sleep_event(self.click_delay, stop_event):
+                return False
             context['last_click'] = topmost_button.center
         
         return success
@@ -493,6 +593,7 @@ class MultiSelectMessagesStep(WorkflowStep):
         mouse_controller = context.get('mouse_controller')
         template_manager = context.get('template_manager')
         vision_engine = context.get('vision_engine')
+        stop_event = context.get('_stop_event')
 
         if not isinstance(mouse_controller, MouseController) or not isinstance(template_manager, TemplateManager) or not isinstance(vision_engine, VisionEngine):
             return False
@@ -507,7 +608,8 @@ class MultiSelectMessagesStep(WorkflowStep):
         if not success:
             return False
         
-        time.sleep(self.click_delay)
+        if not interruptible_sleep_event(self.click_delay, stop_event):
+            return False
         
         # 查找并点击多选按钮
         multiselect_template = template_manager.get_template(self.multiselect_template)
@@ -520,7 +622,8 @@ class MultiSelectMessagesStep(WorkflowStep):
         
         success = mouse_controller.click_match_result(multiselect_match)
         if success:
-            time.sleep(self.click_delay)
+            if not interruptible_sleep_event(self.click_delay, stop_event):
+                return False
             context['last_click'] = multiselect_match.center
         
         return success
@@ -540,6 +643,7 @@ class SelectGroupsStep(WorkflowStep):
         vision_engine = context.get('vision_engine')
         template_manager = context.get('template_manager')
         mouse_controller = context.get('mouse_controller')
+        stop_event = context.get('_stop_event')
         
         if not isinstance(vision_engine, VisionEngine) or not isinstance(template_manager, TemplateManager) or not isinstance(mouse_controller, MouseController):
             return False
@@ -554,7 +658,8 @@ class SelectGroupsStep(WorkflowStep):
         # 点击所有群组按钮
         for match_result in group_matches:
             mouse_controller.click_match_result(match_result)
-            time.sleep(self.click_delay)
+            if not interruptible_sleep_event(self.click_delay, stop_event):
+                return False
         
         # 查找并点击逐条转发按钮
         forward_template = template_manager.get_template(self.forward_template)
@@ -564,7 +669,8 @@ class SelectGroupsStep(WorkflowStep):
         forward_match = vision_engine.find_on_screen(forward_template.path)
         if forward_match:
             mouse_controller.click_match_result(forward_match)
-            time.sleep(self.click_delay)
+            if not interruptible_sleep_event(self.click_delay, stop_event):
+                return False
             context['last_click'] = forward_match.center
         
         return True
@@ -587,6 +693,7 @@ class SendMessageStep(WorkflowStep):
         vision_engine = context.get('vision_engine')
         template_manager = context.get('template_manager')
         mouse_controller = context.get('mouse_controller')
+        stop_event = context.get('_stop_event')
         
         if not isinstance(vision_engine, VisionEngine) or not isinstance(template_manager, TemplateManager) or not isinstance(mouse_controller, MouseController):
             return False
@@ -606,7 +713,8 @@ class SendMessageStep(WorkflowStep):
             return False
         
         # 等待发送完成
-        time.sleep(self.final_wait)
+        if not interruptible_sleep_event(self.final_wait, stop_event):
+            return False
         
         # 清理聊天记录
         menu_template = template_manager.get_template(self.menu_template)
@@ -618,7 +726,8 @@ class SendMessageStep(WorkflowStep):
         success = mouse_controller.click_match_result(menu_match)
         if not success:
             return False
-        time.sleep(2.0) 
+        if not interruptible_sleep_event(2.0, stop_event):
+            return False 
 
         # 找到聊天信息这个定位后，鼠标挪过去，并且向下滚动
         location_template = template_manager.get_template(self.location_template)
@@ -640,7 +749,8 @@ class SendMessageStep(WorkflowStep):
         if not clear_match:
             return False
         mouse_controller.click_match_result(clear_match)
-        time.sleep(2.0)
+        if not interruptible_sleep_event(2.0, stop_event):
+            return False
 
         # 找到确认这个定位后，鼠标挪过去，并且点击
         confirm_template = template_manager.get_template(self.confirm_template)
@@ -650,7 +760,8 @@ class SendMessageStep(WorkflowStep):
         if not confirm_match:
             return False
         mouse_controller.click_match_result(confirm_match)
-        time.sleep(2.0)
+        if not interruptible_sleep_event(2.0, stop_event):
+            return False
 
         # 关闭菜单
         mouse_controller.click_match_result(menu_match)
@@ -808,6 +919,11 @@ class WxworkAutoWorkflow(BaseWorkflow):
             'delay': 2.0
         }))
 
+        # 循环开始标记
+        self.add_step(LoopStartStep("循环开始", {
+            'loop_id': 'main_loop'
+        }))
+
         # 添加主要业务逻辑步骤
         # 1. 查找并点击【外部】按钮
         self.add_step(FindExternalButtonStep("查找并点击外部按钮", {
@@ -821,14 +937,33 @@ class WxworkAutoWorkflow(BaseWorkflow):
             'chatbox_rightbottom_template': 'wxwork_auto.chatbox_rightbottom'
         }))
 
-        # 在聊天框的矩形区域里，等待消息出现
-        self.add_step(WaitForMessageStep("等待消息出现", {
+        # 将长消息给滚动出来
+        self.add_step(MoveToChatBoxAndScrollStep("移动到聊天框并滚动", {
+        }))
+
+        # 在聊天框的矩形区域里，等待消息出现（支持超时标记）
+        self.add_step(WaitForMessageWithTimeoutStep("等待消息出现", {
             'message_templates': [
                 'wxwork_auto.at_wechat_message',
                 'wxwork_auto.at_wechat_miniprogram', 
                 'wxwork_auto.at_wechat_gongzhonghao',
             ],
-            'timeout': 10.0
+            'timeout': 1
+        }))
+
+        self.add_step(DelayStep("延迟10秒", {
+            'condition_key': 'message_timeout',
+            'condition_value': False,
+            'condition_type': 'equals', # 如果条件为True，则不延迟10秒，默认或者False则会延迟
+            'delay': 10.0
+        }))
+
+        # 条件跳转：如果消息超时，跳转回循环开始
+        self.add_step(ConditionalJumpStep("检查消息超时", {
+            'condition_key': 'message_timeout',
+            'condition_value': True,
+            'condition_type': 'equals',
+            'jump_to_loop': 'main_loop'
         }))
 
         # 2. 查找微信消息并设置多选
@@ -880,4 +1015,10 @@ class WxworkAutoWorkflow(BaseWorkflow):
             'location_template': 'wxwork_auto.liaotian_xinxi',
             'confirm_template': 'wxwork_auto.confirm',
             'final_wait': 30.0,
+        }))
+
+        # 循环结束：无条件跳转回循环开始
+        self.add_step(LoopEndStep("循环结束", {
+            'loop_id': 'main_loop',
+            'max_iterations': 0 # 0表示无限循环
         }))

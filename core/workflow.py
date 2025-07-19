@@ -51,6 +51,94 @@ class WorkflowStep(LoggerMixin, ABC):
         return True
 
 
+class LoopStartStep(WorkflowStep):
+    """循环开始标记步骤"""
+    
+    def __init__(self, name: str, config: Dict[str, Any]):
+        super().__init__(name, config)
+        self.loop_id = config.get('loop_id', 'default')
+    
+    def execute(self, context: Dict[str, Any]) -> bool:
+        """标记循环开始位置"""
+        loop_info = context.setdefault('_loop_info', {})
+        loop_info[self.loop_id] = {
+            'start_step': context.get('_current_step_index', 0),
+            'iteration': loop_info.get(self.loop_id, {}).get('iteration', 0) + 1
+        }
+        self.logger.info(f"循环 {self.loop_id} 开始，第 {loop_info[self.loop_id]['iteration']} 次迭代")
+        return True
+
+
+class LoopEndStep(WorkflowStep):
+    """循环结束步骤"""
+    
+    def __init__(self, name: str, config: Dict[str, Any]):
+        super().__init__(name, config)
+        self.loop_id = config.get('loop_id', 'default')
+        self.max_iterations = config.get('max_iterations', 1000)
+    
+    def execute(self, context: Dict[str, Any]) -> bool:
+        """无条件回到循环开始"""
+        loop_info = context.get('_loop_info', {})
+        if self.loop_id not in loop_info:
+            self.logger.error(f"找不到循环 {self.loop_id} 的开始标记")
+            return False
+        
+        current_iteration = loop_info[self.loop_id]['iteration']
+        if self.max_iterations != 0:
+            if current_iteration >= self.max_iterations:
+                self.logger.warning(f"循环 {self.loop_id} 达到最大迭代次数 {self.max_iterations}")
+                return True
+        
+        # 设置跳转标记
+        start_step = loop_info[self.loop_id]['start_step']
+        context['_jump_to_step'] = start_step
+        self.logger.info(f"循环 {self.loop_id} 第 {current_iteration} 次迭代完成，跳转到步骤 {start_step}")
+        return True
+
+
+class ConditionalJumpStep(WorkflowStep):
+    """条件跳转步骤"""
+    
+    def __init__(self, name: str, config: Dict[str, Any]):
+        super().__init__(name, config)
+        self.condition_key = config.get('condition_key')  # 检查上下文中的键
+        self.condition_value = config.get('condition_value')  # 期望的值
+        self.condition_type = config.get('condition_type', 'equals')  # equals, not_equals, exists, not_exists
+        self.jump_to_loop = config.get('jump_to_loop')  # 跳转到哪个循环
+        self.on_failure = config.get('on_failure', 'continue')  # 失败时的行为: continue, jump, stop
+    
+    def execute(self, context: Dict[str, Any]) -> bool:
+        """根据条件决定是否跳转"""
+        should_jump = False
+        
+        if not self.condition_key:
+            self.logger.error(f"条件跳转步骤 {self.name} 缺少条件键")
+            return False
+
+        if self.condition_type == 'exists':
+            should_jump = self.condition_key in context
+        elif self.condition_type == 'not_exists':
+            should_jump = self.condition_key not in context
+        elif self.condition_type == 'equals':
+            should_jump = context.get(self.condition_key) == self.condition_value
+        elif self.condition_type == 'not_equals':
+            should_jump = context.get(self.condition_key) != self.condition_value
+        
+        if should_jump and self.jump_to_loop:
+            loop_info = context.get('_loop_info', {})
+            if self.jump_to_loop in loop_info:
+                start_step = loop_info[self.jump_to_loop]['start_step']
+                context['_jump_to_step'] = start_step
+                self.logger.info(f"条件满足，跳转到循环 {self.jump_to_loop} (步骤 {start_step})")
+                return True
+            else:
+                self.logger.error(f"找不到循环 {self.jump_to_loop}")
+                return self.on_failure != 'stop'
+        
+        return True
+
+
 class BaseWorkflow(LoggerMixin, ABC):
     """工作流基类"""
     
@@ -98,14 +186,20 @@ class BaseWorkflow(LoggerMixin, ABC):
                     self.logger.error(f"步骤验证失败: {step.name}")
                     return False
             
-            # 执行步骤
-            for i, step in enumerate(self.steps, 1):
+            # 执行步骤（支持跳转）
+            i = 0
+            while i < len(self.steps):
+                step = self.steps[i]
+                
+                # 设置当前步骤索引到上下文，供LoopStartStep使用
+                self.context['_current_step_index'] = i
+                
                 # 检查是否需要停止
                 if self.context.get('_stop_check_func') and self.context['_stop_check_func']():
                     self.logger.info("检测到停止信号，工作流执行中断")
                     return False
                 
-                self.logger.info(f"执行步骤 {i}/{len(self.steps)}: {step.name}")
+                self.logger.info(f"执行步骤 {i+1}/{len(self.steps)}: {step.name}")
                 
                 try:
                     success = step.execute(self.context)
@@ -115,9 +209,22 @@ class BaseWorkflow(LoggerMixin, ABC):
                     
                     self.logger.info(f"步骤执行成功: {step.name}")
                     
+                    # 检查是否需要跳转
+                    if '_jump_to_step' in self.context:
+                        jump_to = self.context.pop('_jump_to_step')
+                        if 0 <= jump_to < len(self.steps):
+                            i = jump_to
+                            self.logger.info(f"跳转到步骤 {i+1}")
+                            continue
+                        else:
+                            self.logger.error(f"无效的跳转目标: {jump_to}")
+                            return False
+                    
                 except Exception as e:
                     self.logger.error(f"步骤执行异常: {step.name}, 错误: {e}")
                     return False
+                
+                i += 1
             
             self.logger.info(f"工作流执行完成: {self.name}")
             return True
@@ -202,13 +309,13 @@ class WorkflowManager(LoggerMixin):
             self.logger.error(f"创建工作流实例失败: {name}, 错误: {e}")
             return None
     
-    def execute(self, name: str, stop_check_func=None) -> bool:
+    def execute(self, name: str, stop_event=None) -> bool:
         """
         执行工作流
         
         Args:
             name: 工作流名称
-            stop_check_func: 停止检查函数
+            stop_event: 停止事件 (threading.Event)
         
         Returns:
             执行结果
@@ -217,9 +324,10 @@ class WorkflowManager(LoggerMixin):
         if not workflow:
             return False
         
-        # 如果提供了停止检查函数，添加到工作流上下文
-        if stop_check_func:
-            workflow.set_context('_stop_check_func', stop_check_func)
+        # 如果提供了停止事件，添加到工作流上下文
+        if stop_event:
+            workflow.set_context('_stop_event', stop_event)
+            workflow.set_context('_stop_check_func', lambda: stop_event.is_set())
         
         return workflow.execute()
     
