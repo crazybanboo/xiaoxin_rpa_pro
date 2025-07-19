@@ -1,0 +1,19 @@
+# 企业微信工作流策略配置
+
+# 策略基本信息
+strategy:
+  name: "wxwork_semi_auto"
+  description: "企业微信半自动化策略"
+  version: "1.0.0"
+
+# 窗口配置
+window:
+  # 窗口位置和大小配置
+  position:
+    x: 100
+    y: 100
+  size:
+    width: 2019
+    height: 1470
+  # 是否启用自动调整
+  auto_adjust: true

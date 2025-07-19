@@ -170,36 +170,135 @@ class MouseController(LoggerMixin):
             return False
     
     def scroll(self, 
-               x: int, y: int,
-               clicks: int,
-               direction: str = 'up') -> bool:
+               x: Optional[int] = None, 
+               y: Optional[int] = None,
+               clicks: int = 1,
+               direction: str = 'up',
+               strategy: str = 'auto') -> bool:
         """
         滚动鼠标滚轮
         
         Args:
-            x: 滚动位置x坐标
-            y: 滚动位置y坐标
+            x: 滚动位置x坐标，None则在当前位置滚动
+            y: 滚动位置y坐标，None则在当前位置滚动
             clicks: 滚动次数
             direction: 滚动方向 ('up' 或 'down')
+            strategy: 滚动策略 ('auto', 'single', 'multiple', 'precise')
         
         Returns:
             操作是否成功
         """
         try:
-            # 移动到指定位置
-            if not self.move_to(x, y):
-                return False
+            # 如果指定了位置，移动到指定位置
+            if x is not None and y is not None:
+                if not self.move_to(x, y):
+                    return False
+                self.logger.debug(f"滚动: ({x}, {y}), 方向: {direction}, 次数: {clicks}, 策略: {strategy}")
+            else:
+                current_pos = self.get_position()
+                self.logger.debug(f"在当前位置滚动: {current_pos}, 方向: {direction}, 次数: {clicks}, 策略: {strategy}")
             
             # 确定滚动方向
-            scroll_clicks = clicks if direction == 'up' else -clicks
+            scroll_direction = 1 if direction == 'up' else -1
             
-            self.logger.debug(f"滚动: ({x}, {y}), 方向: {direction}, 次数: {clicks}")
-            pyautogui.scroll(scroll_clicks)
+            # 根据策略执行滚动
+            if strategy == 'single':
+                # 单次滚动，发送一个大的滚动值
+                scroll_amount = scroll_direction * clicks
+                pyautogui.scroll(scroll_amount)
+            elif strategy == 'multiple':
+                # 多次滚动，逐个发送滚动事件
+                for _ in range(clicks):
+                    pyautogui.scroll(scroll_direction)
+                    time.sleep(0.05)  # 短暂延迟确保事件被处理
+            elif strategy == 'precise':
+                # 精确滚动，使用键盘模拟
+                for _ in range(clicks):
+                    if direction == 'up':
+                        pyautogui.press('up')
+                    else:
+                        pyautogui.press('down')
+                    time.sleep(0.05)
+            else:  # auto
+                # 自动选择策略：先尝试单次，如果clicks大于3则使用多次
+                if clicks <= 3:
+                    scroll_amount = scroll_direction * clicks
+                    pyautogui.scroll(scroll_amount)
+                else:
+                    for _ in range(clicks):
+                        pyautogui.scroll(scroll_direction)
+                        time.sleep(0.03)
+            
             return True
             
         except Exception as e:
             self.logger.error(f"鼠标滚动失败: {e}")
             return False
+    
+    def scroll_up(self, 
+                  x: Optional[int] = None, 
+                  y: Optional[int] = None,
+                  clicks: int = 1,
+                  strategy: str = 'auto') -> bool:
+        """
+        向上滚动
+        
+        Args:
+            x: 滚动位置x坐标
+            y: 滚动位置y坐标
+            clicks: 滚动次数
+            strategy: 滚动策略
+        
+        Returns:
+            操作是否成功
+        """
+        return self.scroll(x, y, clicks, 'up', strategy)
+    
+    def scroll_down(self, 
+                    x: Optional[int] = None, 
+                    y: Optional[int] = None,
+                    clicks: int = 1,
+                    strategy: str = 'auto') -> bool:
+        """
+        向下滚动
+        
+        Args:
+            x: 滚动位置x坐标
+            y: 滚动位置y坐标
+            clicks: 滚动次数
+            strategy: 滚动策略
+        
+        Returns:
+            操作是否成功
+        """
+        return self.scroll(x, y, clicks, 'down', strategy)
+    
+    def scroll_to_distance(self, 
+                          x: Optional[int] = None, 
+                          y: Optional[int] = None,
+                          distance: int = 5,
+                          direction: str = 'up') -> bool:
+        """
+        滚动指定距离（自动选择最佳策略）
+        
+        Args:
+            x: 滚动位置x坐标
+            y: 滚动位置y坐标
+            distance: 滚动距离（1-20）
+            direction: 滚动方向
+        
+        Returns:
+            操作是否成功
+        """
+        # 根据距离自动选择策略
+        if distance <= 2:
+            strategy = 'single'
+        elif distance <= 10:
+            strategy = 'multiple'
+        else:
+            strategy = 'precise'
+        
+        return self.scroll(x, y, distance, direction, strategy)
     
     def click_match_result(self, match_result: MatchResult) -> bool:
         """
@@ -363,6 +462,68 @@ class MouseController(LoggerMixin):
         """
         pyautogui.FAILSAFE = enabled
         self.logger.info(f"失败保护已{'启用' if enabled else '禁用'}")
+    
+    def mouse_down(self, 
+                   x: Optional[int] = None, 
+                   y: Optional[int] = None,
+                   button: MouseButton = MouseButton.LEFT) -> bool:
+        """
+        按下鼠标按键
+        
+        Args:
+            x: 按下位置x坐标，None则在当前位置按下
+            y: 按下位置y坐标，None则在当前位置按下
+            button: 鼠标按键
+        
+        Returns:
+            操作是否成功
+        """
+        try:
+            if x is not None and y is not None:
+                self.logger.debug(f"移动并按下鼠标: ({x}, {y}), 按键: {button.value}")
+                pyautogui.moveTo(x, y)
+                pyautogui.mouseDown(button=button.value)
+            else:
+                current_pos = self.get_position()
+                self.logger.debug(f"在当前位置按下鼠标: {current_pos}, 按键: {button.value}")
+                pyautogui.mouseDown(button=button.value)
+            
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"按下鼠标失败: {e}")
+            return False
+    
+    def mouse_up(self, 
+                 x: Optional[int] = None, 
+                 y: Optional[int] = None,
+                 button: MouseButton = MouseButton.LEFT) -> bool:
+        """
+        释放鼠标按键
+        
+        Args:
+            x: 释放位置x坐标，None则在当前位置释放
+            y: 释放位置y坐标，None则在当前位置释放
+            button: 鼠标按键
+        
+        Returns:
+            操作是否成功
+        """
+        try:
+            if x is not None and y is not None:
+                self.logger.debug(f"移动并释放鼠标: ({x}, {y}), 按键: {button.value}")
+                pyautogui.moveTo(x, y)
+                pyautogui.mouseUp(button=button.value)
+            else:
+                current_pos = self.get_position()
+                self.logger.debug(f"在当前位置释放鼠标: {current_pos}, 按键: {button.value}")
+                pyautogui.mouseUp(button=button.value)
+            
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"释放鼠标失败: {e}")
+            return False
 
 
 def create_mouse_controller(config: dict) -> MouseController:

@@ -235,6 +235,60 @@ class TestVisionEngine:
             assert result.x == 150  # 50 + region[0]
             assert result.y == 150  # 50 + region[1]
     
+    @patch('pyautogui.screenshot')
+    def test_find_all_on_screen(self, mock_screenshot, sample_template_image):
+        """测试在屏幕上查找所有模板匹配"""
+        engine = VisionEngine(confidence_threshold=0.5)
+        
+        # 模拟截图
+        mock_image = MagicMock()
+        mock_screenshot.return_value = mock_image
+        
+        with patch('cv2.cvtColor') as mock_cvtcolor, \
+             patch.object(engine, 'find_all_matches') as mock_find_all:
+            
+            mock_cvtcolor.return_value = np.zeros((100, 100, 3), dtype=np.uint8)
+            mock_find_all.return_value = [
+                MatchResult(100, 100, 50, 50, 0.9),
+                MatchResult(200, 200, 50, 50, 0.8),
+                MatchResult(300, 300, 50, 50, 0.7)
+            ]
+            
+            results = engine.find_all_on_screen(sample_template_image)
+            
+            assert len(results) == 3
+            assert all(isinstance(r, MatchResult) for r in results)
+            assert results[0].confidence == 0.9
+            assert results[1].confidence == 0.8
+            assert results[2].confidence == 0.7
+    
+    @patch('pyautogui.screenshot')
+    def test_find_all_on_screen_with_region(self, mock_screenshot, sample_template_image):
+        """测试在屏幕指定区域查找所有模板匹配"""
+        engine = VisionEngine()
+        region = (100, 100, 200, 150)
+        
+        mock_image = MagicMock()
+        mock_screenshot.return_value = mock_image
+        
+        with patch('cv2.cvtColor') as mock_cvtcolor, \
+             patch.object(engine, 'find_all_matches') as mock_find_all:
+            
+            mock_cvtcolor.return_value = np.zeros((150, 200, 3), dtype=np.uint8)
+            mock_find_all.return_value = [
+                MatchResult(50, 50, 30, 30, 0.9),
+                MatchResult(80, 80, 30, 30, 0.8)
+            ]
+            
+            results = engine.find_all_on_screen(sample_template_image, region=region)
+            
+            assert len(results) == 2
+            # 检查坐标调整
+            assert results[0].x == 150  # 50 + region[0]
+            assert results[0].y == 150  # 50 + region[1]
+            assert results[1].x == 180  # 80 + region[0]
+            assert results[1].y == 180  # 80 + region[1]
+    
     @patch('time.sleep')
     def test_wait_for_template_success(self, mock_sleep, sample_template_image):
         """测试等待模板出现成功"""

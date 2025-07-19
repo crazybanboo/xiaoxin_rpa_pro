@@ -300,6 +300,49 @@ class VisionEngine(LoggerMixin):
             self.logger.error(f"屏幕查找失败: {e}")
             return None
     
+    def find_all_on_screen(
+        self,
+        template_path: Union[str, Path],
+        region: Optional[Tuple[int, int, int, int]] = None,
+        method: str = 'TM_CCOEFF_NORMED',
+        grayscale: bool = True,
+        threshold: Optional[float] = None
+    ) -> List[MatchResult]:
+        """
+        在屏幕上查找所有匹配的模板
+        
+        Args:
+            template_path: 模板图像路径
+            region: 搜索区域
+            method: 匹配方法
+            grayscale: 是否转换为灰度图
+            threshold: 置信度阈值
+        
+        Returns:
+            匹配结果列表
+        """
+        try:
+            # 加载模板
+            template = self.load_template(template_path)
+            
+            # 截取屏幕
+            screenshot = self.take_screenshot(region)
+            
+            # 执行匹配
+            results = self.find_all_matches(screenshot, template, method, grayscale, threshold)
+            
+            # 如果指定了区域，需要调整坐标
+            if results and region:
+                for result in results:
+                    result.x += region[0]
+                    result.y += region[1]
+            
+            return results
+            
+        except Exception as e:
+            self.logger.error(f"屏幕查找所有匹配项失败: {e}")
+            return []
+    
     def wait_for_template(
         self,
         template_path: Union[str, Path],
