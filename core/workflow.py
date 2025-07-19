@@ -258,6 +258,16 @@ class WorkflowManager(LoggerMixin):
     
     def _load_workflows(self) -> None:
         """加载工作流"""
+        # 首先尝试从打包的模块中加载workflows
+        try:
+            import workflows
+            self._load_workflows_from_package()
+            if self.workflows:
+                return
+        except ImportError:
+            pass
+        
+        # 如果打包模块不存在，尝试从文件系统加载
         workflows_dir = Path("workflows")
         if not workflows_dir.exists():
             self.logger.warning("工作流目录不存在: workflows")
@@ -288,6 +298,31 @@ class WorkflowManager(LoggerMixin):
                 
             except Exception as e:
                 self.logger.error(f"加载工作流失败: {workflow_file}, 错误: {e}")
+    
+    def _load_workflows_from_package(self) -> None:
+        """从打包的workflows模块中加载工作流"""
+        workflow_modules = [
+            'workflows.basic_example',
+            'workflows.wxwork'
+        ]
+        
+        for module_name in workflow_modules:
+            try:
+                module = importlib.import_module(module_name)
+                
+                # 查找工作流类
+                for attr_name in dir(module):
+                    attr = getattr(module, attr_name)
+                    if (isinstance(attr, type) and 
+                        issubclass(attr, BaseWorkflow) and 
+                        attr != BaseWorkflow):
+                        
+                        workflow_name = getattr(attr, 'workflow_name', module_name.split('.')[-1])
+                        self.workflows[workflow_name] = attr
+                        self.logger.info(f"从包中加载工作流: {workflow_name}")
+                
+            except Exception as e:
+                self.logger.error(f"从包中加载工作流失败: {module_name}, 错误: {e}")
     
     def get_workflow(self, name: str) -> Optional[BaseWorkflow]:
         """

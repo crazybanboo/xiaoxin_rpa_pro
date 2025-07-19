@@ -330,7 +330,8 @@ class ClickSpecialTemplateStep(WorkflowStep):
         center_x += 50
         # 1) 获取进程窗口的底部y坐标
         click_y = context['current_window'].rect[3] - 12
-        mouse_controller.click(center_x, click_y, clicks=120, interval=0.05)
+        mouse_controller.click(center_x, click_y, clicks=500, interval=0.05)
+        mouse_controller.click(center_x, click_y, clicks=500, interval=0.05)
 
         return True
 
