@@ -258,20 +258,29 @@ class WorkflowManager(LoggerMixin):
     
     def _load_workflows(self) -> None:
         """加载工作流"""
-        # 首先尝试从打包的模块中加载workflows
+        # 智能双重加载逻辑：优先从文件系统加载，降级到打包模块
+        
+        # 首先尝试从文件系统加载workflows目录
+        workflows_dir = Path("workflows")
+        if workflows_dir.exists():
+            self.logger.info("使用外部workflows目录")
+            self._load_workflows_from_directory(workflows_dir)
+            return
+        
+        # 如果外部目录不存在，尝试从打包模块加载
         try:
             import workflows
+            self.logger.info("使用内嵌workflows模块")
             self._load_workflows_from_package()
-            if self.workflows:
-                return
+            return
         except ImportError:
             pass
         
-        # 如果打包模块不存在，尝试从文件系统加载
-        workflows_dir = Path("workflows")
-        if not workflows_dir.exists():
-            self.logger.warning("工作流目录不存在: workflows")
-            return
+        # 如果都失败了，记录警告
+        self.logger.warning("工作流目录和模块都不存在")
+    
+    def _load_workflows_from_directory(self, workflows_dir: Path) -> None:
+        """从文件系统目录加载工作流"""
         
         # 添加workflows目录到Python路径
         sys.path.insert(0, str(workflows_dir.parent))

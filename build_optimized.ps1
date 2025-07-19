@@ -4,9 +4,19 @@
     Xiaoxin RPA Pro - Optimized Nuitka Build Script
 .DESCRIPTION
     Package Python project to standalone Windows executable using Nuitka with optimizations
+.PARAMETER WorkflowMode
+    Workflow loading mode: 'embedded' (workflows packed into exe) or 'external' (workflows as external folder)
+.EXAMPLE
+    .\build_optimized.ps1 -WorkflowMode embedded
+    .\build_optimized.ps1 -WorkflowMode external
 .AUTHOR
     Xiaoxin RPA Pro
 #>
+
+param(
+    [ValidateSet("embedded", "external")]
+    [string]$WorkflowMode = "external"
+)
 
 # Set error handling
 $ErrorActionPreference = "Stop"
@@ -30,6 +40,7 @@ function Write-Error {
 # Main function
 function Main {
     Write-Info "Starting Xiaoxin RPA Pro optimized packaging process..."
+    Write-Info "Workflow Mode: $WorkflowMode"
     
     # Check current directory
     $currentDir = Get-Location
@@ -62,10 +73,10 @@ function Main {
     
     # Create output directory
     $outputDir = "dist"
-    if (Test-Path $outputDir) {
-        Write-Info "Cleaning old output directory..."
-        Remove-Item $outputDir -Recurse -Force
-    }
+    # if (Test-Path $outputDir) {
+    #     Write-Info "Cleaning old output directory..."
+    #     Remove-Item $outputDir -Recurse -Force
+    # }
     New-Item -ItemType Directory -Path $outputDir -Force | Out-Null
     Write-Info "Created output directory: $outputDir"
     
@@ -80,11 +91,11 @@ function Main {
     $nuitkaArgs = @(
         "--standalone",
         "--output-dir=$outputDir",
-        "--output-filename=xiaoxin_rpa_pro.exe",
+        "--output-filename=xiaoxin_rpa_pro_$WorkflowMode.exe",
         "--product-name=`"Xiaoxin RPA Pro`"",
         "--file-version=1.0.0",
         "--product-version=1.0.0",
-        "--file-description=`"Python-based RPA automation software`"",
+        "--file-description=`"RPA automation software`"",
         "--copyright=`"Copyright (c) 2025 Xiaoxin RPA Pro`"",
         "--follow-imports",
         "--assume-yes-for-downloads",
@@ -135,11 +146,18 @@ function Main {
         "core.template",
         "core.utils",
         "core.window",
-        "core.mouse",
-        "workflows",
-        "workflows.basic_example",
-        "workflows.wxwork"
+        "core.mouse"
     )
+    
+    # Add workflows modules for embedded mode
+    if ($WorkflowMode -eq "embedded") {
+        $includeModules += @(
+            "workflows",
+            "workflows.basic_example",
+            "workflows.wxwork"
+        )
+        Write-Info "Adding workflows modules for embedded mode"
+    }
     
     foreach ($module in $includeModules) {
         $nuitkaArgs += "--include-module=$module"
@@ -182,25 +200,50 @@ function Main {
         }
     }
     
+    # Copy workflows directory for external mode only
+    if ($WorkflowMode -eq "external") {
+        if (Test-Path "workflows") {
+            $workflowsDestPath = Join-Path $outputDir "main.dist\workflows"
+            Copy-Item "workflows" $workflowsDestPath -Recurse -Force
+            Write-Info "Copied workflows directory to: $workflowsDestPath (external mode)"
+        } else {
+            Write-Warning "Workflows directory not found, skipping copy"
+        }
+    } else {
+        Write-Info "Skipping workflows directory copy (embedded mode)"
+    }
+    
+    # Create build info file
+    $buildInfo = @{
+        workflow_mode = $WorkflowMode
+        build_time = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
+        version = "1.0.0"
+    }
+    $buildInfoJson = $buildInfo | ConvertTo-Json -Depth 2
+    $buildInfoPath = Join-Path $outputDir "main.dist\build_info.json"
+    Set-Content -Path $buildInfoPath -Value $buildInfoJson -Encoding UTF8
+    Write-Info "Created build info file: $buildInfoPath"
+    
     # Create sample run script
+    $exeName = "xiaoxin_rpa_pro_$WorkflowMode.exe"
     $runScript = @"
 @echo off
-echo Xiaoxin RPA Pro - Usage Examples
+echo Xiaoxin RPA Pro - Usage Examples ($WorkflowMode mode)
 echo.
 echo Interactive Menu Mode (Recommended):
-echo xiaoxin_rpa_pro.exe
+echo $exeName
 echo.
 echo Command Line Mode:
-echo xiaoxin_rpa_pro.exe --workflow basic_example
-echo xiaoxin_rpa_pro.exe --workflow wxwork_auto --config config/wxwork_strategy.yaml
-echo xiaoxin_rpa_pro.exe --workflow wxwork_semi_auto --config config/wxwork_strategy.yaml
+echo $exeName --workflow basic_example
+echo $exeName --workflow wxwork_auto --config config/wxwork_strategy.yaml
+echo $exeName --workflow wxwork_semi_auto --config config/wxwork_strategy.yaml
 echo.
-echo For more options run: xiaoxin_rpa_pro.exe --help
+echo For more options run: $exeName --help
 echo.
 pause
 "@
     
-    $runScriptPath = Join-Path $outputDir "Usage_Examples.bat"
+    $runScriptPath = Join-Path $outputDir "Usage_Examples_$WorkflowMode.bat"
     Set-Content -Path $runScriptPath -Value $runScript -Encoding UTF8
     Write-Info "Created usage examples script: $runScriptPath"
     
@@ -208,10 +251,12 @@ pause
     Write-Info "Packaging completed!"
     Write-Info "Output directory: $outputDir"
     
-    if (Test-Path (Join-Path $outputDir "xiaoxin_rpa_pro.exe")) {
-        $exeSize = (Get-Item (Join-Path $outputDir "xiaoxin_rpa_pro.exe")).Length / 1MB
+    $finalExePath = Join-Path $outputDir $exeName
+    if (Test-Path $finalExePath) {
+        $exeSize = (Get-Item $finalExePath).Length / 1MB
         Write-Info "Executable size: $([math]::Round($exeSize, 2)) MB"
-        Write-Info "Executable path: $(Join-Path $outputDir 'xiaoxin_rpa_pro.exe')"
+        Write-Info "Executable path: $finalExePath"
+        Write-Info "Workflow mode: $WorkflowMode"
     }
     
     # List output directory contents
