@@ -363,7 +363,7 @@ class WindowManager(LoggerMixin):
             self.logger.error(f"窗口最大化失败: {e}")
             return False
     
-    def resize_window(self, window_info: WindowInfo, width: int, height: int) -> bool:
+    def resize_window(self, window_info: WindowInfo, width: int, height: int) -> Optional[WindowInfo]:
         """
         调整窗口大小
         
@@ -373,7 +373,7 @@ class WindowManager(LoggerMixin):
             height: 新高度
         
         Returns:
-            操作是否成功
+            更新后的窗口信息，失败时返回None
         """
         try:
             hwnd = window_info.hwnd
@@ -381,14 +381,31 @@ class WindowManager(LoggerMixin):
             
             win32gui.MoveWindow(hwnd, x, y, width, height, True)
             
+            # 获取更新后的窗口信息
+            new_rect = win32gui.GetWindowRect(hwnd)
+            placement = win32gui.GetWindowPlacement(hwnd)
+            new_state = WindowState(placement[1])
+            
+            updated_window_info = WindowInfo(
+                hwnd=window_info.hwnd,
+                title=window_info.title,
+                class_name=window_info.class_name,
+                pid=window_info.pid,
+                process_name=window_info.process_name,
+                rect=new_rect,
+                state=new_state,
+                visible=window_info.visible,
+                enabled=window_info.enabled
+            )
+            
             self.logger.info(f"窗口大小调整成功: {window_info.title}, 新尺寸: {width}x{height}")
-            return True
+            return updated_window_info
             
         except Exception as e:
             self.logger.error(f"窗口大小调整失败: {e}")
-            return False
+            return None
     
-    def move_window(self, window_info: WindowInfo, x: int, y: int) -> bool:
+    def move_window(self, window_info: WindowInfo, x: int, y: int) -> Optional[WindowInfo]:
         """
         移动窗口
         
@@ -398,7 +415,7 @@ class WindowManager(LoggerMixin):
             y: 新y坐标
         
         Returns:
-            操作是否成功
+            更新后的窗口信息，失败时返回None
         """
         try:
             hwnd = window_info.hwnd
@@ -406,12 +423,26 @@ class WindowManager(LoggerMixin):
             
             win32gui.MoveWindow(hwnd, x, y, width, height, True)
             
+            # 获取更新后的窗口信息
+            new_rect = win32gui.GetWindowRect(hwnd)
+            updated_window_info = WindowInfo(
+                hwnd=window_info.hwnd,
+                title=window_info.title,
+                class_name=window_info.class_name,
+                pid=window_info.pid,
+                process_name=window_info.process_name,
+                rect=new_rect,
+                state=window_info.state,
+                visible=window_info.visible,
+                enabled=window_info.enabled
+            )
+            
             self.logger.info(f"窗口移动成功: {window_info.title}, 新位置: ({x}, {y})")
-            return True
+            return updated_window_info
             
         except Exception as e:
             self.logger.error(f"窗口移动失败: {e}")
-            return False
+            return None
     
     def get_window_text(self, window_info: WindowInfo) -> str:
         """

@@ -7,14 +7,30 @@ Xiaoxin RPA Pro - 基于Python的RPA自动化软件
 import sys
 import os
 import argparse
+import threading
+import keyboard
 from pathlib import Path
 
 # 添加项目根目录到Python路径
 sys.path.insert(0, str(Path(__file__).parent))
 
+# 全局停止标志
+stop_flag = threading.Event()
+
 from core.logger import setup_logger
 from core.config import Config
 from core.workflow import WorkflowManager
+
+
+def setup_hotkey_listener(logger):
+    """设置F12热键监听"""
+    def on_f12_press():
+        logger.info("检测到F12按键，程序即将停止...")
+        stop_flag.set()
+    
+    # 注册F12热键
+    keyboard.add_hotkey('f12', on_f12_press)
+    logger.info("F12热键监听已启动，按F12可随时中止程序")
 
 
 def main():
@@ -65,12 +81,15 @@ def main():
         )
         logger.info(f"配置文件加载成功: {args.config}")
         
+        # 设置F12热键监听
+        setup_hotkey_listener(logger)
+        
         # 初始化工作流管理器
         workflow_manager = WorkflowManager(config)
         
         # 执行工作流
         logger.info(f"开始执行工作流: {args.workflow}")
-        success = workflow_manager.execute(args.workflow)
+        success = workflow_manager.execute(args.workflow, lambda: stop_flag.is_set())
         
         if success:
             logger.info(f"工作流执行成功: {args.workflow}")
@@ -88,6 +107,12 @@ def main():
             import traceback
             traceback.print_exc()
         return 1
+    finally:
+        # 清理热键监听
+        try:
+            keyboard.unhook_all()
+        except:
+            pass
 
 
 if __name__ == "__main__":

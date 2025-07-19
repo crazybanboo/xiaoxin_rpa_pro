@@ -300,7 +300,7 @@ class MouseController(LoggerMixin):
         
         return self.scroll(x, y, distance, direction, strategy)
     
-    def click_match_result(self, match_result: MatchResult) -> bool:
+    def click_match_result(self, match_result: MatchResult, button: MouseButton = MouseButton.LEFT) -> bool:
         """
         点击匹配结果的中心位置
         
@@ -311,7 +311,7 @@ class MouseController(LoggerMixin):
             操作是否成功
         """
         center_x, center_y = match_result.center
-        return self.click(center_x, center_y)
+        return self.click(center_x, center_y, button=button)
     
     def hover(self, x: int, y: int, duration: Optional[float] = None) -> bool:
         """

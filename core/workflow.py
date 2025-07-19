@@ -13,7 +13,7 @@ from .config import Config
 from .logger import LoggerMixin
 
 
-class WorkflowStep(ABC):
+class WorkflowStep(LoggerMixin, ABC):
     """工作流步骤基类"""
     
     def __init__(self, name: str, config: Dict[str, Any]):
@@ -24,6 +24,7 @@ class WorkflowStep(ABC):
             name: 步骤名称
             config: 步骤配置
         """
+        super().__init__()
         self.name = name
         self.config = config
     
@@ -99,6 +100,11 @@ class BaseWorkflow(LoggerMixin, ABC):
             
             # 执行步骤
             for i, step in enumerate(self.steps, 1):
+                # 检查是否需要停止
+                if self.context.get('_stop_check_func') and self.context['_stop_check_func']():
+                    self.logger.info("检测到停止信号，工作流执行中断")
+                    return False
+                
                 self.logger.info(f"执行步骤 {i}/{len(self.steps)}: {step.name}")
                 
                 try:
@@ -196,12 +202,13 @@ class WorkflowManager(LoggerMixin):
             self.logger.error(f"创建工作流实例失败: {name}, 错误: {e}")
             return None
     
-    def execute(self, name: str) -> bool:
+    def execute(self, name: str, stop_check_func=None) -> bool:
         """
         执行工作流
         
         Args:
             name: 工作流名称
+            stop_check_func: 停止检查函数
         
         Returns:
             执行结果
@@ -209,6 +216,10 @@ class WorkflowManager(LoggerMixin):
         workflow = self.get_workflow(name)
         if not workflow:
             return False
+        
+        # 如果提供了停止检查函数，添加到工作流上下文
+        if stop_check_func:
+            workflow.set_context('_stop_check_func', stop_check_func)
         
         return workflow.execute()
     
