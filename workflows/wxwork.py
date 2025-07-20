@@ -10,7 +10,7 @@ from core.mouse import MouseController, MouseButton
 from core.window import WindowManager
 from core.template import TemplateManager
 from core.config import Config
-from core.utils import interruptible_sleep, interruptible_sleep_event
+from core.utils import interruptible_sleep, interruptible_sleep_event, WXWorkCacheCleaner
 
 class WaitForWxWorkWindowStep(WorkflowStep):
     """等待企业微信窗口出现"""
@@ -539,6 +539,48 @@ class WaitForMessageWithTimeoutStep(WorkflowStep):
         
         return True  # 总是返回True，让流程继续
 
+class WXWorkCacheCleanStep(WorkflowStep):
+    """企业微信缓存清理步骤"""
+    
+    def __init__(self, name: str, config: dict):
+        super().__init__(name, config)
+        self.clean_interval = config.get('clean_interval', 1000)
+        self.clean_patterns = config.get('clean_patterns', [])
+        self.enabled = config.get('enabled', True)
+    
+    def execute(self, context: dict) -> bool:
+        """执行步骤"""
+        if not self.enabled:
+            return True
+        
+        # 获取当前循环索引从循环信息中
+        loop_info = context.get('_loop_info', {})
+        main_loop_info = loop_info.get('main_loop', {})
+        loop_index = main_loop_info.get('iteration', 0)
+        
+        # 检查是否需要清理（第一次或达到清理间隔）
+        if loop_index == 1 or loop_index % self.clean_interval == 0:
+            self.logger.info(f"循环第{loop_index}次，开始清理企业微信缓存...")
+            
+            try:
+                # 创建缓存清理器
+                cleaner = WXWorkCacheCleaner()
+                
+                # 分析缓存
+                analysis = cleaner.analyze_cache()
+                cleaner.print_analysis(analysis)
+                
+                # 清理缓存
+                patterns = self.clean_patterns if self.clean_patterns else None
+                results = cleaner.clean_cache(patterns=patterns, dry_run=False)
+                cleaner.print_results(results)
+                
+            except Exception as e:
+                self.logger.warning(f"企业微信缓存清理失败: {str(e)}")
+                # 清理失败不应该阻止流程继续
+        
+        return True
+
 class FindExternalButtonStep(WorkflowStep):
     """查找并点击【外部】按钮"""
     
@@ -923,6 +965,16 @@ class WxworkAutoWorkflow(BaseWorkflow):
         # 循环开始标记
         self.add_step(LoopStartStep("循环开始", {
             'loop_id': 'main_loop'
+        }))
+
+        # 从策略配置获取缓存清理设置
+        cache_cleaner_config = strategy_config.get('cache_cleaner', {})
+        
+        # 添加企业微信缓存清理步骤（在FindExternalButtonStep之前）
+        self.add_step(WXWorkCacheCleanStep("企业微信缓存清理", {
+            'enabled': cache_cleaner_config.get('enabled', True),
+            'clean_interval': cache_cleaner_config.get('clean_interval', 1000),
+            'clean_patterns': cache_cleaner_config.get('clean_patterns', [])
         }))
 
         # 添加主要业务逻辑步骤

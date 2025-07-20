@@ -17,3 +17,12 @@ window:
     height: 1470
   # 是否启用自动调整
   auto_adjust: true
+
+# 企业微信缓存清理配置
+cache_cleaner:
+  # 是否启用缓存清理
+  enabled: true
+  # 清理频率设置（循环次数）
+  clean_interval: 1000  # 每1000次循环清理一次，即 index % 1000 == 0 时清理
+  # 清理的缓存类型（空数组表示清理所有类型）
+  clean_patterns: []  # 如：['avatar_cache', 'general_cache'] 或 [] 表示全部
