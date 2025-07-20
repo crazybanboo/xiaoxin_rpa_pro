@@ -11,6 +11,8 @@
 - **工作流引擎**：灵活的步骤化任务执行框架
 - **配置管理**：支持YAML和JSON格式配置文件
 - **日志系统**：支持滚动日志，防止日志文件过大
+- **安全机制**：F12紧急停止热键，鼠标失败保护机制
+- **企业微信自动化**：内置企业微信工作流，支持缓存清理和自动/半自动模式
 
 ## 系统要求
 
@@ -21,40 +23,43 @@
 ## 安装
 
 ### 1. 克隆项目
-```bash
+```powershell
 git clone <repository-url>
 cd xiaoxin_rpa_pro
 ```
 
 ### 2. 创建虚拟环境
-```bash
+```powershell
 python -m venv .env
-.env\\Scripts\\activate.ps1  # Windows
+.env\Scripts\activate.ps1
 ```
 
 ### 3. 安装依赖
-```bash
+```powershell
 pip install -r requirements.txt
 ```
 
 ## 快速开始
 
 ### 1. 创建配置文件
-```bash
-python -c \"from core.config import create_default_config; create_default_config('config/my_config.yaml')\"
+```powershell
+python -c "from core.config import create_default_config; create_default_config('config/my_config.yaml')"
 ```
 
 ### 2. 运行示例工作流
-```bash
-# 简单点击示例
-python main.py -w simple_click
-
-# 基础窗口操作示例
+```powershell
+# 基础示例工作流
 python main.py -w basic_example
+
+# 企业微信自动化工作流
+python main.py -w wxwork_auto --config config/wxwork_strategy.yaml
+
+# 启用调试模式
+python main.py -d --log-level DEBUG
 ```
 
 ### 3. 查看帮助
-```bash
+```powershell
 python main.py --help
 ```
 
@@ -65,18 +70,21 @@ xiaoxin_rpa_pro/
 ├── config/              # 配置文件
 │   └── default.yaml
 ├── core/                # 核心模块
-│   ├── config.py        # 配置管理
-│   ├── logger.py        # 日志系统（支持相对路径显示）
-│   ├── vision.py        # 图像识别
-│   ├── mouse.py         # 鼠标操作
-│   ├── window.py        # 窗口管理
-│   ├── template.py      # 模板管理
-│   └── workflow.py      # 工作流引擎
+│   ├── config.py        # 配置管理（YAML/JSON支持）
+│   ├── logger.py        # 日志系统（支持滚动和相对路径显示）
+│   ├── vision.py        # 计算机视觉引擎（OpenCV模板匹配）
+│   ├── mouse.py         # 鼠标自动化控制器（带安全机制）
+│   ├── window.py        # Windows窗口管理（Win32 API）
+│   ├── template.py      # 多分辨率模板管理系统
+│   ├── workflow.py      # 工作流执行引擎
+│   └── utils.py         # 工具函数（缓存清理等）
 ├── docs/                # 文档
 ├── examples/            # 示例代码
 ├── logs/                # 日志文件
 ├── templates/           # 模板文件
 ├── workflows/           # 工作流定义
+│   ├── basic_example.py # 基础示例工作流
+│   └── wxwork.py        # 企业微信自动化工作流
 ├── tests/               # 测试文件
 ├── main.py              # 主程序入口
 └── requirements.txt     # 依赖清单
@@ -161,14 +169,11 @@ if window:
 
 ```bash
 templates/
-├── my_workflow/
-│   ├── 1920x1080/          # 1920x1080分辨率模板
-│   │   ├── button.png
-│   │   └── input.png
-│   ├── 1366x768/           # 1366x768分辨率模板
-│   │   ├── button.png
-│   │   └── input.png
-│   └── template_config.json # 模板配置
+├── {workflow_name}/
+│   ├── 1920x1080/          # Full HD分辨率模板
+│   ├── 3840x2160/          # 4K分辨率模板
+│   ├── template_config.json # 模板配置
+│   └── README.md           # 模板说明
 ```
 
 ### 使用模板
@@ -233,23 +238,44 @@ templates:
 ## 测试
 
 ### 运行所有测试
-```bash
+```powershell
 pytest
 ```
 
 ### 运行单元测试
-```bash
+```powershell
 pytest -m unit
 ```
 
 ### 运行集成测试
-```bash
+```powershell
 pytest -m integration
 ```
 
-### 生成测试报告
-```bash
+### 生成测试覆盖率报告
+```powershell
 pytest --cov=core --cov-report=html
+```
+
+### 代码质量检查
+```powershell
+# 代码格式化
+black .
+
+# 代码检查
+flake8
+
+# 类型检查
+mypy core/
+```
+
+### 构建可执行文件
+```powershell
+# 构建标准版本
+.\build.ps1
+
+# 构建优化版本
+.\build_optimized.ps1
 ```
 
 ## 常见问题
@@ -288,6 +314,19 @@ A:
 2. 调整最大文件大小（`max_bytes`）和备份数量（`backup_count`）
 3. 定期清理旧的日志文件
 4. 调整日志级别以减少日志输出
+
+### Q: 如何紧急停止程序？
+A:
+1. 按F12键立即停止当前执行的工作流
+2. 将鼠标移动到屏幕左上角（如果启用了fail_safe）
+3. 使用Ctrl+C终止程序
+
+### Q: 企业微信自动化如何使用？
+A:
+1. 配置企业微信相关参数在`config/wxwork_strategy.yaml`
+2. 运行命令：`python main.py -w wxwork_auto --config config/wxwork_strategy.yaml`
+3. 支持自动模式和半自动模式
+4. 内置缓存清理功能
 
 ## 开发指南
 
