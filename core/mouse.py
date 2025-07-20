@@ -12,6 +12,15 @@ import pyautogui
 from .logger import LoggerMixin
 from .vision import MatchResult
 
+# 添加 Windows API 支持
+try:
+    import win32api
+    import win32con
+    import win32gui
+    HAS_WIN32 = True
+except ImportError:
+    HAS_WIN32 = False
+
 
 class MouseButton(Enum):
     """鼠标按键枚举"""
@@ -524,6 +533,64 @@ class MouseController(LoggerMixin):
         except Exception as e:
             self.logger.error(f"释放鼠标失败: {e}")
             return False
+    
+    def win32scroll(self, 
+                    pixels: int, 
+                    x: Optional[int] = None, 
+                    y: Optional[int] = None) -> bool:
+        """
+        使用Win32 API进行滚动操作（支持像素级滚动）
+        
+        Args:
+            pixels: 滚动像素数（正数向上，负数向下）
+            x: 滚动位置x坐标，None则在当前位置滚动
+            y: 滚动位置y坐标，None则在当前位置滚动
+        
+        Returns:
+            操作是否成功
+        """
+        try:
+            if not HAS_WIN32:
+                self.logger.warning("Windows API 不可用，回退到标准滚动方法")
+                # 将像素转换为滚动次数（大概估算：每次滚动约120像素）
+                clicks = pixels // 120 if pixels != 0 else (1 if pixels > 0 else -1)
+                return self.scroll(x, y, abs(clicks), 'up' if pixels > 0 else 'down')
+            
+            # 获取滚动位置
+            if x is None or y is None:
+                current_pos = self.get_position()
+                scroll_x = x if x is not None else current_pos[0]
+                scroll_y = y if y is not None else current_pos[1]
+            else:
+                scroll_x, scroll_y = x, y
+            
+            self.logger.debug(f"Win32滚动: 在位置({scroll_x}, {scroll_y})滚动{pixels}像素")
+            
+            # 获取窗口句柄
+            hwnd = win32gui.WindowFromPoint((scroll_x, scroll_y))
+            
+            # 计算滚动量（Windows API 使用的是 120 的倍数）
+            # 正数表示向上滚动，负数表示向下滚动
+            delta = pixels * 120 // 120
+            if pixels != 0 and delta == 0:
+                delta = 120 if pixels > 0 else -120
+            
+            # 发送滚动消息
+            # WM_MOUSEWHEEL: wParam高位为滚动量，低位为按键状态；lParam为鼠标位置
+            win32gui.SendMessage(hwnd, win32con.WM_MOUSEWHEEL, 
+                               delta << 16, (scroll_y << 16) | scroll_x)
+            
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Win32滚动失败: {e}")
+            # 回退到标准滚动方法
+            try:
+                clicks = abs(pixels // 120) if pixels != 0 else 1
+                direction = 'up' if pixels >= 0 else 'down'
+                return self.scroll(x, y, clicks, direction)
+            except:
+                return False
 
 
 def create_mouse_controller(config: dict) -> MouseController:

@@ -191,7 +191,7 @@ def main():
     parser.add_argument(
         "--log-level", 
         "-l",
-        default="INFO",
+        default=None,
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
         help="日志级别"
     )
@@ -205,9 +205,12 @@ def main():
         # 从配置中获取日志配置
         log_config = config.get('logging', {})
         
+        # 确定日志级别：优先使用命令行参数，其次使用配置文件
+        log_level = args.log_level if args.log_level is not None else log_config.get('level', 'INFO')
+        
         # 设置日志
         logger = setup_logger(
-            level=args.log_level,
+            level=log_level,
             debug=args.debug,
             config=log_config
         )
@@ -216,7 +219,7 @@ def main():
         logger.info(f"🚀 Xiaoxin RPA Pro v{__version__} 启动")
         logger.info(f"作者: {__author__}")
         logger.info(f"配置文件加载成功: {args.config}")
-        logger.info(f"日志级别: {args.log_level}")
+        logger.info(f"日志级别: {log_level}")
         if args.debug:
             logger.info("调试模式已启用")
         
@@ -247,7 +250,7 @@ def main():
             print(f"\n🎉 欢迎使用 Xiaoxin RPA Pro v{__version__}")
             print(f"👥 作者: {__author__}")
             print(f"📁 配置文件: {args.config}")
-            print(f"📊 日志级别: {args.log_level}")
+            print(f"📊 日志级别: {log_level}")
             if args.debug:
                 print(f"🐛 调试模式: 已启用")
             

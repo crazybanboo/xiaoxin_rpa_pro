@@ -270,7 +270,18 @@ class ClickSpecialTemplateStep(WorkflowStep):
             return False
         
         # 往下滚动鼠标
-        mouse_controller.scroll(clicks=3, direction='down', strategy='multiple')
+        # mouse_controller.scroll(clicks=1, direction='down', strategy='multiple')
+        # time.sleep(0.5)
+        # mouse_controller.scroll(clicks=1, direction='down', strategy='multiple')
+        # time.sleep(0.5)
+        # mouse_controller.scroll(clicks=1, direction='down', strategy='multiple')
+        # time.sleep(0.5)
+        mouse_controller.win32scroll(-120)
+        time.sleep(0.5)
+        mouse_controller.win32scroll(-120)
+        time.sleep(0.5)
+        mouse_controller.win32scroll(-120)
+        time.sleep(0.5)
 
         # 获取模板
         template_item = template_manager.get_template(self.template_name)
@@ -323,13 +334,15 @@ class ClickSpecialTemplateStep(WorkflowStep):
             mouse_controller.click_match_result(match_result)
 
         # 往下滚动鼠标
-        mouse_controller.scroll(clicks=1, direction='down', strategy='multiple')
+        mouse_controller.win32scroll(-120)
+
+        time.sleep(1)
 
         # 开始疯狂连点
         center_x, center_y = match_results[-1].center
         center_x += 50
         # 1) 获取进程窗口的底部y坐标
-        click_y = context['current_window'].rect[3] - 12
+        click_y = context['current_window'].rect[3] - 10
         mouse_controller.click(center_x, click_y, clicks=500, interval=0.05)
         mouse_controller.click(center_x, click_y, clicks=500, interval=0.05)
 
@@ -992,6 +1005,7 @@ class WxworkAutoWorkflow(BaseWorkflow):
 
         # 将长消息给滚动出来
         self.add_step(MoveToChatBoxAndScrollStep("移动到聊天框并滚动", {
+            'scroll_count': 8
         }))
 
         # 在聊天框的矩形区域里，等待消息出现（支持超时标记）
