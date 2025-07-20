@@ -334,17 +334,17 @@ class ClickSpecialTemplateStep(WorkflowStep):
             mouse_controller.click_match_result(match_result)
 
         # 往下滚动鼠标
-        mouse_controller.win32scroll(-120)
+        # mouse_controller.win32scroll(-120)
 
-        time.sleep(1)
+        # time.sleep(1)
 
-        # 开始疯狂连点
-        center_x, center_y = match_results[-1].center
-        center_x += 50
-        # 1) 获取进程窗口的底部y坐标
-        click_y = context['current_window'].rect[3] - 10
-        mouse_controller.click(center_x, click_y, clicks=500, interval=0.05)
-        mouse_controller.click(center_x, click_y, clicks=500, interval=0.05)
+        # # 开始疯狂连点
+        # center_x, center_y = match_results[-1].center
+        # center_x += 50
+        # # 1) 获取进程窗口的底部y坐标
+        # click_y = context['current_window'].rect[3] - 10
+        # mouse_controller.click(center_x, click_y, clicks=500, interval=0.05)
+        # mouse_controller.click(center_x, click_y, clicks=500, interval=0.05)
 
         return True
 
@@ -430,7 +430,7 @@ class CalculateChatBoxRectStep(WorkflowStep):
         return True
 
 class MoveToChatBoxAndScrollStep(WorkflowStep):
-    """移动到聊天框中心点并向下滚动"""
+    """移动到聊天框中心点并向上滚动"""
     
     def __init__(self, name: str, config: dict):
         super().__init__(name, config)
@@ -824,6 +824,44 @@ class SendMessageStep(WorkflowStep):
 
         return True
 
+class ScrollAndSelectMultiBoxStep(WorkflowStep):
+    """滚动并全选多选框"""
+
+    def __init__(self, name: str, config: dict):
+        super().__init__(name, config)
+        self.scroll_count = config.get('scroll_count', 8)
+        self.scroll_direction = config.get('scroll_direction', 'down')
+
+    def execute(self, context: dict) -> bool:
+        """执行步骤"""
+        vision_engine = context.get('vision_engine')
+        template_manager = context.get('template_manager')
+        mouse_controller = context.get('mouse_controller')
+        stop_event = context.get('_stop_event')
+        
+        if not isinstance(vision_engine, VisionEngine) or not isinstance(template_manager, TemplateManager) or not isinstance(mouse_controller, MouseController):
+            return False
+        
+        # 往下滚动，然后查找多选框并且全选多选框，再往下滚动，如此往复，直到没有多选框出现
+        for i in range(self.scroll_count):
+            mouse_controller.scroll(clicks=10, direction=self.scroll_direction, strategy='multiple')
+            # if not interruptible_sleep_event(1.0, stop_event): # 这里不睡眠，可以快一点
+            #     return False
+
+            # 查找所有多选框
+            multi_box_template = template_manager.get_template('wxwork_semi_auto.multi_box')
+            if not multi_box_template:
+                return False
+            multi_box_matches = vision_engine.find_all_on_screen(multi_box_template.path)
+            if not multi_box_matches:
+                self.logger.info(f"没有找到多选框，停止滚动")
+                break
+            
+            # 全选多选框
+            for match_result in multi_box_matches:
+                mouse_controller.click_match_result(match_result)
+        
+        return True
 
 class WxworkSemiAutoWorkflow(BaseWorkflow):
     """
@@ -905,6 +943,12 @@ class WxworkSemiAutoWorkflow(BaseWorkflow):
 
         self.add_step(ClickSpecialTemplateStep("特殊点击多选框序列", {
             'template_name': 'wxwork_semi_auto.multi_box',
+        }))
+
+        # 往下滚动，然后查找多选框并且全选多选框，再往下滚动，如此往复，直到没有多选框出现
+        self.add_step(ScrollAndSelectMultiBoxStep("滚动并全选多选框", {
+            'scroll_count': 800,
+            'scroll_direction': 'down'
         }))
 
 class WxworkAutoWorkflow(BaseWorkflow):
@@ -1058,21 +1102,27 @@ class WxworkAutoWorkflow(BaseWorkflow):
             'template_name': 'wxwork_auto.multi_box',
         }))
 
-        # 这里的延迟，是为了等待选中动作完成，有些服务器很卡的，需要等待他们彻底完成
-        self.add_step(DelayStep("延迟10秒", {
-            'delay': 10.0
+        # 往下滚动，然后查找多选框并且全选多选框，再往下滚动，如此往复，直到没有多选框出现
+        self.add_step(ScrollAndSelectMultiBoxStep("滚动并全选多选框", {
+            'scroll_count': 800,
+            'scroll_direction': 'down'
         }))
 
-        self.add_step(ClickMultiTemplateStep("补点击多选框", {
-            'template_name': [
-                'wxwork_auto.multi_box',
-                'wxwork_auto.multi_box_hover'
-            ],
-            'skip_first': False,
-            'max_clicks': 9,
-            'click_delay': 0,
-            'min_matches': 0
+        # 这里的延迟，是为了等待选中动作完成，有些服务器很卡的，需要等待他们彻底完成
+        self.add_step(DelayStep("延迟2秒", {
+            'delay': 2.0
         }))
+
+        # self.add_step(ClickMultiTemplateStep("补点击多选框", {
+        #     'template_name': [
+        #         'wxwork_auto.multi_box',
+        #         'wxwork_auto.multi_box_hover'
+        #     ],
+        #     'skip_first': False,
+        #     'max_clicks': 9,
+        #     'click_delay': 0,
+        #     'min_matches': 0
+        # }))
 
         # 5. 发送消息并清理聊天记录
         self.add_step(SendMessageStep("发送消息完等待30s后清理", {
@@ -1081,7 +1131,7 @@ class WxworkAutoWorkflow(BaseWorkflow):
             'clear_template': 'wxwork_auto.qingkong_liaotian_jilu',
             'location_template': 'wxwork_auto.liaotian_xinxi',
             'confirm_template': 'wxwork_auto.confirm',
-            'final_wait': 30.0,
+            'final_wait': 40.0,
         }))
 
         # 循环结束：无条件跳转回循环开始
