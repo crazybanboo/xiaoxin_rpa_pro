@@ -37,7 +37,7 @@ class ConfigGenerator:
         return {
             'app': {
                 'name': 'Xiaoxin RPA Pro',
-                'version': '1.0.0'
+                'version': '1.0.2'
             },
             'vision': {
                 'confidence_threshold': 0.8
@@ -52,7 +52,7 @@ class ConfigGenerator:
         return {
             'app': {
                 'name': 'Xiaoxin RPA Pro',
-                'version': '1.0.0',
+                'version': '1.0.2',
                 'debug': True
             },
             'logging': {
@@ -91,7 +91,7 @@ class ConfigGenerator:
         return {
             'app': {
                 'name': 'Xiaoxin RPA Pro',
-                'version': '1.0.0',
+                'version': '1.0.2',
                 'debug': False
             },
             'logging': {
@@ -130,7 +130,7 @@ class ConfigGenerator:
         return {
             'app': {
                 'name': 'Xiaoxin RPA Pro Test',
-                'version': '1.0.0',
+                'version': '1.0.2',
                 'debug': True
             },
             'logging': {

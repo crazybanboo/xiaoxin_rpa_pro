@@ -93,8 +93,8 @@ function Main {
         "--output-dir=$outputDir",
         "--output-filename=xiaoxin_rpa_pro_$WorkflowMode.exe",
         "--product-name=`"Xiaoxin RPA Pro`"",
-        "--file-version=1.0.0",
-        "--product-version=1.0.0",
+        "--file-version=1.0.2",
+        "--product-version=1.0.2",
         "--file-description=`"RPA automation software`"",
         "--copyright=`"Copyright (c) 2025 Xiaoxin RPA Pro`"",
         "--follow-imports",
@@ -217,7 +217,7 @@ function Main {
     $buildInfo = @{
         workflow_mode = $WorkflowMode
         build_time = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
-        version = "1.0.0"
+        version = "1.0.2"
     }
     $buildInfoJson = $buildInfo | ConvertTo-Json -Depth 2
     $buildInfoPath = Join-Path $outputDir "main.dist\build_info.json"

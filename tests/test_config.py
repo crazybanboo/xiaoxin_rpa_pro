@@ -18,7 +18,7 @@ class TestConfig:
         """测试使用YAML文件初始化配置"""
         config = Config(config_file)
         assert config.get('app.name') == 'Test RPA'
-        assert config.get('app.version') == '1.0.0'
+        assert config.get('app.version') == '1.0.2'
         assert config.get('logging.level') == 'DEBUG'
     
     def test_init_with_json_file(self, temp_dir, sample_config_data):
@@ -213,7 +213,7 @@ class TestCreateDefaultConfig:
         # 验证配置内容
         config = Config(config_path)
         assert config.get('app.name') == 'Xiaoxin RPA Pro'
-        assert config.get('app.version') == '1.0.0'
+        assert config.get('app.version') == '1.0.2'
         assert config.get('vision.confidence_threshold') == 0.8
         assert config.get('mouse.click_delay') == 0.1
     

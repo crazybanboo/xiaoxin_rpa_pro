@@ -23,7 +23,7 @@ from core.config import Config
 from core.workflow import WorkflowManager
 
 # 版本信息
-__version__ = "1.0.0"
+__version__ = "1.0.2"
 __author__ = "Xiaoxin RPA Pro Team"
 
 

@@ -171,7 +171,7 @@ def create_default_config(config_path: Union[str, Path]) -> None:
     default_config = {
         'app': {
             'name': 'Xiaoxin RPA Pro',
-            'version': '1.0.0',
+            'version': '1.0.2',
             'debug': False
         },
         'logging': {

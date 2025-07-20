@@ -193,7 +193,7 @@ if template:
 ```yaml
 app:
   name: \"Xiaoxin RPA Pro\"      # 应用程序名称
-  version: \"1.0.0\"             # 应用程序版本号
+  version: \"1.0.2\"             # 应用程序版本号
   debug: false                 # 是否启用调试模式
 
 logging:
