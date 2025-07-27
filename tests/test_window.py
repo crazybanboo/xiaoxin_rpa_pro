@@ -524,10 +524,17 @@ class TestWindowManager:
         """测试调整窗口大小成功"""
         window_info = WindowInfo(12345, "Test Window", "Class1", 1234, "test.exe", (100, 100, 500, 400), WindowState.NORMAL, True, True)
         
+        # 模拟成功的 Windows API 调用
+        mock_win32gui.GetWindowRect.return_value = (100, 100, 700, 600)
+        mock_win32gui.GetWindowPlacement.return_value = (0, 1, 0, 0, 0, 0, 0, 0, 0, 0)
+        
         manager = WindowManager()
         result = manager.resize_window(window_info, 600, 500)
         
-        assert result is True
+        # 检查返回的是 WindowInfo 对象而不是布尔值
+        assert result is not None
+        assert isinstance(result, WindowInfo)
+        assert result.hwnd == 12345
         mock_win32gui.MoveWindow.assert_called_once_with(12345, 100, 100, 600, 500, True)
     
     @patch('core.window.win32gui')
@@ -540,17 +547,24 @@ class TestWindowManager:
         manager = WindowManager()
         result = manager.resize_window(window_info, 600, 500)
         
-        assert result is False
+        # 异常时应返回 None
+        assert result is None
     
     @patch('core.window.win32gui')
     def test_move_window_success(self, mock_win32gui):
         """测试移动窗口成功"""
         window_info = WindowInfo(12345, "Test Window", "Class1", 1234, "test.exe", (100, 100, 500, 400), WindowState.NORMAL, True, True)
         
+        # 模拟成功的 Windows API 调用
+        mock_win32gui.GetWindowRect.return_value = (200, 150, 600, 450)
+        
         manager = WindowManager()
         result = manager.move_window(window_info, 200, 150)
         
-        assert result is True
+        # 检查返回的是 WindowInfo 对象而不是布尔值
+        assert result is not None
+        assert isinstance(result, WindowInfo)
+        assert result.hwnd == 12345
         mock_win32gui.MoveWindow.assert_called_once_with(12345, 200, 150, 400, 300, True)
     
     @patch('core.window.win32gui')
@@ -563,7 +577,8 @@ class TestWindowManager:
         manager = WindowManager()
         result = manager.move_window(window_info, 200, 150)
         
-        assert result is False
+        # 异常时应返回 None
+        assert result is None
     
     @patch('core.window.win32gui')
     def test_get_window_text_success(self, mock_win32gui):
@@ -748,8 +763,10 @@ class TestWindowManagerIntegration:
         
         # 5. 移动窗口
         move_result = manager.move_window(window, 200, 150)
-        assert move_result is True
+        assert move_result is not None
+        assert isinstance(move_result, WindowInfo)
         
         # 6. 调整窗口大小
         resize_result = manager.resize_window(window, 600, 500)
-        assert resize_result is True
+        assert resize_result is not None
+        assert isinstance(resize_result, WindowInfo)

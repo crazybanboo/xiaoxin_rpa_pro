@@ -6,7 +6,7 @@ app:
 logging:
   console_enabled: true
   file_enabled: true
-  level: INFO
+  level: DEBUG
   rotation:
     enabled: true
     max_bytes: 10485760  # 10MB

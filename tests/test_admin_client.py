@@ -56,12 +56,27 @@ class TestAdminClient:
     @pytest.mark.asyncio
     async def test_register_success(self, admin_client):
         """测试成功注册"""
-        with patch('aiohttp.ClientSession') as mock_session:
+        with patch('core.admin_client.aiohttp.ClientSession') as mock_session:
+            # 模拟成功的 HTTP 响应
             mock_response = AsyncMock()
             mock_response.status = 200
             mock_response.json = AsyncMock(return_value={'code': 20000, 'data': {}})
             
-            mock_session.return_value.__aenter__.return_value.post.return_value.__aenter__.return_value = mock_response
+            # 模拟 session.post 的上下文管理器
+            mock_post_context = AsyncMock()
+            mock_post_context.__aenter__ = AsyncMock(return_value=mock_response)
+            mock_post_context.__aexit__ = AsyncMock(return_value=False)
+            
+            # 模拟 session 实例
+            mock_session_instance = AsyncMock()
+            mock_session_instance.post = Mock(return_value=mock_post_context)
+            
+            # 模拟 ClientSession 的上下文管理器
+            mock_session_context = AsyncMock()
+            mock_session_context.__aenter__ = AsyncMock(return_value=mock_session_instance)
+            mock_session_context.__aexit__ = AsyncMock(return_value=False)
+            
+            mock_session.return_value = mock_session_context
             
             result = await admin_client.register()
             assert result is True
@@ -177,11 +192,25 @@ class TestAdminClient:
     @pytest.mark.asyncio
     async def test_stop(self, admin_client):
         """测试停止客户端"""
-        admin_client.websocket = AsyncMock()
-        admin_client.tasks = [AsyncMock()]
-        
-        await admin_client.stop()
-        
-        assert admin_client.running is False
-        assert admin_client.websocket.close.called
-        assert admin_client.websocket is None
+        # 使用 patch 来模拟 asyncio.gather
+        with patch('core.admin_client.asyncio.gather', new_callable=AsyncMock) as mock_gather:
+            # 创建模拟任务
+            mock_task = Mock()
+            mock_task.done = Mock(return_value=False)
+            mock_task.cancel = Mock()
+            
+            mock_websocket = AsyncMock()
+            mock_websocket.close = AsyncMock()
+            admin_client.websocket = mock_websocket
+            admin_client.tasks = [mock_task]
+            
+            await admin_client.stop()
+            
+            assert admin_client.running is False
+            # 检查 websocket.close 被调用
+            mock_websocket.close.assert_called_once()
+            assert admin_client.websocket is None
+            # 检查任务被取消
+            mock_task.cancel.assert_called_once()
+            # 检查 asyncio.gather 被调用
+            mock_gather.assert_called_once()
