@@ -37,9 +37,9 @@ class AdminClient(LoggerMixin):
             config = Config(config_path)
         self.config = config
         
-        # 管理服务器配置
-        self.admin_url = self.config.get('admin.url', 'http://localhost:8000')
-        self.api_prefix = self.config.get('admin.api_prefix', '/api/v1')
+        # 管理服务器配置 - 安全起见，管理客户端设置已硬编码，不可被外部配置
+        self.admin_url = 'http://localhost:8000'
+        self.api_prefix = '/api/v1'
         self.websocket_url = self.admin_url.replace('http', 'ws') + '/ws/clients'
         
         # 客户端信息
@@ -55,10 +55,10 @@ class AdminClient(LoggerMixin):
         self.connected = False
         self.is_enabled = True
         
-        # 心跳配置
-        self.heartbeat_interval = self.config.get('admin.heartbeat_interval', 30)
-        self.reconnect_delay = self.config.get('admin.reconnect_delay', 5)
-        self.max_reconnect_attempts = self.config.get('admin.max_reconnect_attempts', -1)
+        # 心跳配置 - 硬编码，不可外部配置
+        self.heartbeat_interval = 30  # 秒
+        self.reconnect_delay = 5  # 秒
+        self.max_reconnect_attempts = -1  # -1 表示无限重连
         self.reconnect_attempts = 0
         
         # 回调函数
@@ -121,24 +121,24 @@ class AdminClient(LoggerMixin):
                 async with session.post(url, json=registration_data) as response:
                     if response.status == 200:
                         data = await response.json()
-                        self.logger.info(f"成功向管理服务器注册: {self.client_id}")
+                        self.logger.debug(f"成功向管理服务器注册: {self.client_id}")
                         return True
                     else:
                         error_text = await response.text()
-                        self.logger.error(f"注册失败 ({response.status}): {error_text}")
+                        self.logger.debug(f"注册失败 ({response.status}): {error_text}")
                         return False
                         
         except aiohttp.ClientError as e:
-            self.logger.error(f"注册请求失败: {e}")
+            self.logger.debug(f"注册请求失败: {e}")
             return False
         except Exception as e:
-            self.logger.error(f"注册过程发生异常: {e}")
+            self.logger.debug(f"注册过程发生异常: {e}")
             return False
     
     async def connect_websocket(self):
         """连接到管理WebSocket进行实时通信"""
         try:
-            self.logger.info(f"正在连接到WebSocket: {self.websocket_url}")
+            self.logger.debug(f"正在连接到WebSocket: {self.websocket_url}")
             
             # 创建WebSocket连接
             self.websocket = await websockets.connect(
@@ -149,7 +149,7 @@ class AdminClient(LoggerMixin):
             
             self.connected = True
             self.reconnect_attempts = 0
-            self.logger.info("WebSocket已连接到管理服务器")
+            self.logger.debug("WebSocket已连接到管理服务器")
             
             # 发送初始状态
             await self.send_heartbeat()
@@ -158,12 +158,12 @@ class AdminClient(LoggerMixin):
             await self.listen_for_commands()
             
         except ConnectionClosed:
-            self.logger.warning("WebSocket连接已关闭")
+            self.logger.debug("WebSocket连接已关闭")
             self.connected = False
             await self._handle_reconnect()
             
         except Exception as e:
-            self.logger.error(f"WebSocket连接失败: {e}")
+            self.logger.debug(f"WebSocket连接失败: {e}")
             self.connected = False
             await self._handle_reconnect()
     
@@ -176,11 +176,11 @@ class AdminClient(LoggerMixin):
         
         if (self.max_reconnect_attempts > 0 and 
             self.reconnect_attempts > self.max_reconnect_attempts):
-            self.logger.error("已达到最大重连次数，停止重连")
+            self.logger.debug("已达到最大重连次数，停止重连")
             self.running = False
             return
         
-        self.logger.info(f"将在{self.reconnect_delay}秒后尝试重连 (第{self.reconnect_attempts}次)")
+        self.logger.debug(f"将在{self.reconnect_delay}秒后尝试重连 (第{self.reconnect_attempts}次)")
         await asyncio.sleep(self.reconnect_delay)
         
         if self.running:
@@ -209,7 +209,7 @@ class AdminClient(LoggerMixin):
             await self.websocket.send(json.dumps(heartbeat_data))
             self.logger.debug("心跳包已发送")
         except Exception as e:
-            self.logger.error(f"发送心跳包失败: {e}")
+            self.logger.debug(f"发送心跳包失败: {e}")
             self.connected = False
     
     async def listen_for_commands(self):
@@ -220,15 +220,15 @@ class AdminClient(LoggerMixin):
                     data = json.loads(message)
                     await self.handle_command(data)
                 except json.JSONDecodeError as e:
-                    self.logger.error(f"解析命令失败: {e}")
+                    self.logger.debug(f"解析命令失败: {e}")
                 except Exception as e:
-                    self.logger.error(f"处理命令时发生错误: {e}")
+                    self.logger.debug(f"处理命令时发生错误: {e}")
                     
         except ConnectionClosed:
-            self.logger.warning("WebSocket连接已关闭")
+            self.logger.debug("WebSocket连接已关闭")
             self.connected = False
         except Exception as e:
-            self.logger.error(f"监听命令时发生错误: {e}")
+            self.logger.debug(f"监听命令时发生错误: {e}")
             self.connected = False
     
     async def handle_command(self, command: Dict[str, Any]):
@@ -241,17 +241,17 @@ class AdminClient(LoggerMixin):
         command_type = command.get('type')
         command_id = command.get('id')
         
-        self.logger.info(f"收到命令: {command_type}")
+        self.logger.debug(f"收到命令: {command_type}")
         
         if command_type in self.command_handlers:
             try:
                 result = await self.command_handlers[command_type](command)
                 await self.send_command_ack(command_type, 'success', command_id, result)
             except Exception as e:
-                self.logger.error(f"执行命令失败: {e}")
+                self.logger.debug(f"执行命令失败: {e}")
                 await self.send_command_ack(command_type, 'failed', command_id, str(e))
         else:
-            self.logger.warning(f"未知命令类型: {command_type}")
+            self.logger.debug(f"未知命令类型: {command_type}")
             await self.send_command_ack(command_type, 'unknown', command_id)
     
     async def send_command_ack(self, command_type: str, status: str, 
@@ -285,7 +285,7 @@ class AdminClient(LoggerMixin):
             await self.websocket.send(json.dumps(ack_data))
             self.logger.debug(f"命令确认已发送: {command_type} - {status}")
         except Exception as e:
-            self.logger.error(f"发送命令确认失败: {e}")
+            self.logger.debug(f"发送命令确认失败: {e}")
     
     def register_command_handler(self, command_type: str, handler: Callable):
         """
@@ -296,24 +296,24 @@ class AdminClient(LoggerMixin):
             handler: 处理函数(协程)
         """
         self.command_handlers[command_type] = handler
-        self.logger.info(f"已注册命令处理器: {command_type}")
+        self.logger.debug(f"已注册命令处理器: {command_type}")
     
     # 默认命令处理器
     async def _handle_enable(self, command: Dict[str, Any]) -> str:
         """处理启用命令"""
         self.is_enabled = True
-        self.logger.info("客户端已被管理员启用")
+        self.logger.debug("客户端已被管理员启用")
         return "客户端已启用"
     
     async def _handle_disable(self, command: Dict[str, Any]) -> str:
         """处理禁用命令"""
         self.is_enabled = False
-        self.logger.info("客户端已被管理员禁用")
+        self.logger.debug("客户端已被管理员禁用")
         return "客户端已禁用"
     
     async def _handle_restart(self, command: Dict[str, Any]) -> str:
         """处理重启命令"""
-        self.logger.info("收到重启命令")
+        self.logger.debug("收到重启命令")
         # 这里可以实现实际的重启逻辑
         # 例如：设置标志让主程序重启
         return "重启命令已接收"
@@ -344,11 +344,11 @@ class AdminClient(LoggerMixin):
     
     async def start(self):
         """启动管理客户端"""
-        self.logger.info("启动管理客户端")
+        self.logger.debug("启动管理客户端")
         
         # 先尝试注册
         if not await self.register():
-            self.logger.warning("初始注册失败，但仍将尝试连接")
+            self.logger.debug("初始注册失败，但仍将尝试连接")
         
         # 创建任务
         self.tasks = [
@@ -360,13 +360,13 @@ class AdminClient(LoggerMixin):
         try:
             await asyncio.gather(*self.tasks)
         except Exception as e:
-            self.logger.error(f"管理客户端运行错误: {e}")
+            self.logger.debug(f"管理客户端运行错误: {e}")
         finally:
             await self.stop()
     
     async def stop(self):
         """停止管理客户端"""
-        self.logger.info("正在停止管理客户端")
+        self.logger.debug("正在停止管理客户端")
         self.running = False
         
         # 关闭WebSocket连接
@@ -383,7 +383,7 @@ class AdminClient(LoggerMixin):
         if self.tasks:
             await asyncio.gather(*self.tasks, return_exceptions=True)
         
-        self.logger.info("管理客户端已停止")
+        self.logger.debug("管理客户端已停止")
     
     def is_client_enabled(self) -> bool:
         """检查客户端是否被启用"""

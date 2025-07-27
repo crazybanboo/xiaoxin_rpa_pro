@@ -15,12 +15,7 @@ def mock_config():
     """创建模拟配置"""
     config = Mock(spec=Config)
     config.get.side_effect = lambda key, default=None: {
-        'admin.enabled': True,
-        'admin.url': 'http://localhost:8000',
-        'admin.api_prefix': '/api/v1',
-        'admin.heartbeat_interval': 30,
-        'admin.reconnect_delay': 5,
-        'admin.max_reconnect_attempts': 3,
+        # 管理客户端配置已硬编码，不再从配置文件读取
         'app.version': '1.0.2'
     }.get(key, default)
     return config
