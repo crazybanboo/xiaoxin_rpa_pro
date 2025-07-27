@@ -10,6 +10,7 @@ import argparse
 import threading
 import keyboard
 import time
+import asyncio
 from pathlib import Path
 
 # 添加项目根目录到Python路径
@@ -21,6 +22,7 @@ stop_flag = threading.Event()
 from core.logger import setup_logger
 from core.config import Config
 from core.workflow import WorkflowManager
+from core.admin_client import AdminClient
 
 # 版本信息
 __version__ = "1.0.2"
@@ -36,6 +38,33 @@ def setup_hotkey_listener(logger):
     # 注册F12热键
     keyboard.add_hotkey('f12', on_f12_press)
     logger.info("F12热键监听已启动，按F12可随时中止程序")
+
+
+async def run_admin_client(config, logger):
+    """运行管理客户端"""
+    if not config.get('admin.enabled', False):
+        logger.info("管理客户端已禁用")
+        return None
+    
+    try:
+        admin_client = AdminClient(config)
+        logger.info("管理客户端已初始化")
+        return admin_client
+    except Exception as e:
+        logger.error(f"初始化管理客户端失败: {e}")
+        return None
+
+
+def run_workflow_with_admin_check(workflow_manager, workflow_name, admin_client, logger):
+    """在检查管理客户端状态后运行工作流"""
+    # 如果管理客户端存在且被禁用，则不执行工作流
+    if admin_client and not admin_client.is_client_enabled():
+        logger.warning("客户端已被管理员禁用，无法执行工作流")
+        print("\n⚠️  客户端已被管理员禁用，无法执行工作流")
+        return False
+    
+    # 执行工作流
+    return workflow_manager.execute(workflow_name, stop_flag)
 
 
 def get_available_workflows(config):
@@ -87,7 +116,7 @@ def display_menu(workflows):
             return None
 
 
-def run_workflow_interactive(config, logger):
+def run_workflow_interactive(config, logger, admin_client=None):
     """交互式工作流运行模式"""
     workflows = get_available_workflows(config)
     
@@ -119,17 +148,20 @@ def run_workflow_interactive(config, logger):
             # 初始化工作流管理器
             workflow_manager = WorkflowManager(config)
             
-            # 执行工作流
+            # 执行工作流（带管理客户端检查）
             print(f"\n🚀 开始执行工作流: {selected_workflow}")
             print("💡 按F12可随时中止工作流")
             start_time = time.time()
             
-            success = workflow_manager.execute(selected_workflow, stop_flag)
+            success = run_workflow_with_admin_check(workflow_manager, selected_workflow, admin_client, logger)
             
             end_time = time.time()
             duration = end_time - start_time
             
-            if stop_flag.is_set():
+            if admin_client and not admin_client.is_client_enabled():
+                # 客户端被禁用的特殊处理
+                pass
+            elif stop_flag.is_set():
                 print(f"\n⏹️  工作流已被用户中止: {selected_workflow}")
                 logger.info(f"工作流被用户中止: {selected_workflow} (运行时间: {duration:.2f}秒)")
             elif success:
@@ -156,6 +188,77 @@ def run_workflow_interactive(config, logger):
     return 0
 
 
+async def async_main(args, config, logger):
+    """异步主函数，处理管理客户端和工作流执行"""
+    admin_client = None
+    admin_task = None
+    
+    try:
+        # 初始化管理客户端
+        if config.get('admin.enabled', False):
+            admin_client = await run_admin_client(config, logger)
+            if admin_client:
+                # 在后台运行管理客户端
+                admin_task = asyncio.create_task(admin_client.start())
+                logger.info("管理客户端已在后台启动")
+                
+                # 给管理客户端一些时间来连接和注册
+                await asyncio.sleep(2)
+        
+        # 判断运行模式
+        if args.workflow:
+            # 命令行模式 - 执行指定工作流
+            logger.info("运行模式: 命令行模式")
+            
+            # 设置F12热键监听
+            setup_hotkey_listener(logger)
+            
+            # 初始化工作流管理器
+            workflow_manager = WorkflowManager(config)
+            
+            # 执行工作流（带管理客户端检查）
+            logger.info(f"开始执行工作流: {args.workflow}")
+            success = run_workflow_with_admin_check(workflow_manager, args.workflow, admin_client, logger)
+            
+            if admin_client and not admin_client.is_client_enabled():
+                logger.warning("客户端已被管理员禁用")
+                return 1
+            elif success:
+                logger.info(f"工作流执行成功: {args.workflow}")
+                return 0
+            else:
+                logger.error(f"工作流执行失败: {args.workflow}")
+                return 1
+        else:
+            # 交互式菜单模式
+            logger.info("运行模式: 交互式菜单模式")
+            print(f"\n🎉 欢迎使用 Xiaoxin RPA Pro v{__version__}")
+            print(f"👥 作者: {__author__}")
+            print(f"📁 配置文件: {args.config}")
+            print(f"📊 日志级别: {logger.level}")
+            if args.debug:
+                print(f"🐛 调试模式: 已启用")
+            
+            if admin_client:
+                print(f"🌐 管理客户端: 已连接到 {config.get('admin.url')}")
+            
+            return run_workflow_interactive(config, logger, admin_client)
+            
+    finally:
+        # 停止管理客户端
+        if admin_client:
+            logger.info("正在停止管理客户端...")
+            await admin_client.stop()
+        
+        # 等待管理客户端任务结束
+        if admin_task and not admin_task.done():
+            admin_task.cancel()
+            try:
+                await admin_task
+            except asyncio.CancelledError:
+                pass
+
+
 def main():
     """主程序入口"""
     parser = argparse.ArgumentParser(
@@ -169,6 +272,9 @@ def main():
     2. 命令行模式:
         xiaoxin_rpa_pro.exe -w basic_example
         xiaoxin_rpa_pro.exe -w wxwork_auto --config config/wxwork_strategy.yaml
+        
+    3. 禁用管理客户端:
+        xiaoxin_rpa_pro.exe --no-admin
         """
     )
     parser.add_argument(
@@ -195,12 +301,21 @@ def main():
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
         help="日志级别"
     )
+    parser.add_argument(
+        "--no-admin",
+        action="store_true",
+        help="禁用管理客户端连接"
+    )
     
     args = parser.parse_args()
     
     try:
         # 先加载配置
         config = Config(args.config)
+        
+        # 如果命令行指定了--no-admin，则覆盖配置
+        if args.no_admin:
+            config.set('admin.enabled', False)
         
         # 从配置中获取日志配置
         log_config = config.get('logging', {})
@@ -223,38 +338,8 @@ def main():
         if args.debug:
             logger.info("调试模式已启用")
         
-        # 判断运行模式
-        if args.workflow:
-            # 命令行模式 - 执行指定工作流
-            logger.info("运行模式: 命令行模式")
-            
-            # 设置F12热键监听
-            setup_hotkey_listener(logger)
-            
-            # 初始化工作流管理器
-            workflow_manager = WorkflowManager(config)
-            
-            # 执行工作流
-            logger.info(f"开始执行工作流: {args.workflow}")
-            success = workflow_manager.execute(args.workflow, stop_flag)
-            
-            if success:
-                logger.info(f"工作流执行成功: {args.workflow}")
-                return 0
-            else:
-                logger.error(f"工作流执行失败: {args.workflow}")
-                return 1
-        else:
-            # 交互式菜单模式
-            logger.info("运行模式: 交互式菜单模式")
-            print(f"\n🎉 欢迎使用 Xiaoxin RPA Pro v{__version__}")
-            print(f"👥 作者: {__author__}")
-            print(f"📁 配置文件: {args.config}")
-            print(f"📊 日志级别: {log_level}")
-            if args.debug:
-                print(f"🐛 调试模式: 已启用")
-            
-            return run_workflow_interactive(config, logger)
+        # 运行异步主函数
+        return asyncio.run(async_main(args, config, logger))
             
     except FileNotFoundError as e:
         if 'logger' in locals():

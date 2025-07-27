@@ -19,9 +19,14 @@ configparser
 # Logging and utilities
 loguru
 
+# Admin client dependencies
+aiohttp
+websockets
+
 # Testing framework
 pytest
 pytest-cov
+pytest-asyncio
 
 # Development tools
 black

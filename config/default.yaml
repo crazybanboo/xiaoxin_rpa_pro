@@ -2,6 +2,14 @@ app:
   debug: false
   name: Xiaoxin RPA Pro
   version: 1.0.2
+admin:
+  enabled: true
+  url: http://localhost:8000
+  api_prefix: /api/v1
+  heartbeat_interval: 30  # seconds
+  reconnect_delay: 5  # seconds
+  max_reconnect_attempts: -1  # -1 for unlimited
+  auto_register: true
 logging:
   console_enabled: true
   file_enabled: true

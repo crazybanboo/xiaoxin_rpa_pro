@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a Python-based RPA (Robotic Process Automation) software called "Xiaoxin RPA Pro" that supports image recognition, mouse automation, window management, and workflow execution. The project is designed to run on Windows and uses Win32 APIs for system interaction.
+This is a Python-based RPA (Robotic Process Automation) software called "Xiaoxin RPA Pro" that supports image recognition, mouse automation, window management, workflow execution, and remote management capabilities. The project is designed to run on Windows and uses Win32 APIs for system interaction.
 
 ## Environment Setup
 
@@ -78,6 +78,7 @@ mypy core/
 - **template.py**: Multi-resolution template management system
 - **workflow.py**: Workflow engine with step-based execution framework
 - **utils.py**: Utility functions including cache cleaning and sleep functions
+- **admin_client.py**: Remote management client for connecting to xiaoxin admin backend
 
 ### Workflow System
 - **Base Classes**: `BaseWorkflow` and `WorkflowStep` provide the foundation
@@ -152,3 +153,5 @@ templates/
 - **F12 Hotkey**: Built-in emergency stop functionality via F12 key
 - **Resolution Awareness**: Templates and workflows should consider multiple screen resolutions
 - **Cache Management**: Enterprise WeChat workflows include automatic cache cleaning functionality
+- **Remote Management**: Integrated admin client allows remote monitoring and control from xiaoxin admin backend
+- **Async Support**: Main program now uses asyncio for admin client WebSocket communication
